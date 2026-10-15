@@ -205,6 +205,7 @@ const SECTIONS: SectionItem[] = [
 
 // =========================================================================
 // REVEAL ON SCROLL COMPONENT (IntersectionObserver + Compositor Transform)
+// Cleans up GPU layer properties after animation completes for crisp rendering
 // =========================================================================
 
 interface RevealProps {
@@ -225,35 +226,46 @@ function Reveal({
   duration = 750,
 }: RevealProps) {
   const [isVisible, setIsVisible] = useState(false)
+  const [animationDone, setAnimationDone] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       setIsVisible(true)
+      setAnimationDone(true)
       return
     }
 
     const el = ref.current
     if (!el) return
 
+    let timer: ReturnType<typeof setTimeout> | null = null
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
           setIsVisible(true)
           observer.unobserve(el)
+          timer = setTimeout(() => {
+            setAnimationDone(true)
+          }, duration + delay + 80)
         }
       },
       {
-        threshold: 0.1,
-        rootMargin: '0px 0px -40px 0px',
+        threshold: 0.08,
+        rootMargin: '0px 0px -30px 0px',
       }
     )
 
     observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+    return () => {
+      observer.disconnect()
+      if (timer) clearTimeout(timer)
+    }
+  }, [delay, duration])
 
   const getTransform = () => {
+    if (animationDone) return 'none'
     if (isVisible) return 'translate3d(0, 0, 0)'
     switch (direction) {
       case 'up':
@@ -266,7 +278,7 @@ function Reveal({
         return `translate3d(-${distance}px, 0, 0)`
       case 'none':
       default:
-        return 'translate3d(0, 0, 0)'
+        return 'none'
     }
   }
 
@@ -277,11 +289,11 @@ function Reveal({
       style={{
         opacity: isVisible ? 1 : 0,
         transform: getTransform(),
-        transitionProperty: 'opacity, transform',
+        transitionProperty: animationDone ? 'none' : 'opacity, transform',
         transitionDuration: `${duration}ms`,
         transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
         transitionDelay: `${delay}ms`,
-        willChange: 'opacity, transform',
+        willChange: animationDone ? 'auto' : 'opacity, transform',
       }}
     >
       {children}
@@ -335,47 +347,150 @@ function RevealRule({ className = '', delay = 100 }: { className?: string; delay
 }
 
 // =========================================================================
-// AMBIENT CURSOR SPOTLIGHT
+// AMBIENT CURSOR SPOTLIGHT (Smooth Lerp Physics, Zero React Re-renders)
 // =========================================================================
 
 function AmbientCursor() {
-  const [pos, setPos] = useState({ x: -1000, y: -1000 })
-  const [visible, setVisible] = useState(false)
+  const spotlightRef = useRef<HTMLDivElement>(null)
+  const mousePos = useRef({ x: -1000, y: -1000 })
+  const currentPos = useRef({ x: -1000, y: -1000 })
+  const rafId = useRef<number | null>(null)
+  const isVisible = useRef(false)
 
   useEffect(() => {
     if (!window.matchMedia('(pointer: fine)').matches) return
 
+    const el = spotlightRef.current
+    if (!el) return
+
     const handleMouseMove = (e: MouseEvent) => {
-      setPos({ x: e.clientX, y: e.clientY })
-      if (!visible) setVisible(true)
+      mousePos.current = { x: e.clientX, y: e.clientY }
+      if (!isVisible.current) {
+        isVisible.current = true
+        el.style.opacity = '1'
+        currentPos.current = { x: e.clientX, y: e.clientY }
+      }
     }
 
     const handleMouseLeave = () => {
-      setVisible(false)
+      isVisible.current = false
+      if (el) el.style.opacity = '0'
+    }
+
+    const animate = () => {
+      if (isVisible.current && el) {
+        currentPos.current.x += (mousePos.current.x - currentPos.current.x) * 0.14
+        currentPos.current.y += (mousePos.current.y - currentPos.current.y) * 0.14
+
+        el.style.background = `radial-gradient(650px circle at ${currentPos.current.x}px ${currentPos.current.y}px, rgba(239, 238, 233, 0.045), transparent 65%)`
+      }
+      rafId.current = requestAnimationFrame(animate)
     }
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true })
     document.addEventListener('mouseleave', handleMouseLeave)
+    rafId.current = requestAnimationFrame(animate)
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseleave', handleMouseLeave)
+      if (rafId.current) cancelAnimationFrame(rafId.current)
     }
-  }, [visible])
+  }, [])
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-700 hidden sm:block"
-      style={{
-        opacity: visible ? 1 : 0,
-        background: `radial-gradient(650px circle at ${pos.x}px ${pos.y}px, rgba(239, 238, 233, 0.045), transparent 65%)`,
-      }}
+      ref={spotlightRef}
+      className="pointer-events-none fixed inset-0 z-30 opacity-0 transition-opacity duration-700 hidden sm:block will-change-[background]"
       aria-hidden="true"
     />
   )
 }
 
 // =========================================================================
-// CHAPTER RAIL INDICATOR (Desktop Right Rail)
+// READING SCROLL PROGRESS BAR (Compositor Transform scaleX, Zero Reflow)
+// =========================================================================
+
+function ReadingProgressBar({ progress }: { progress: number }) {
+  return (
+    <div
+      className="fixed top-0 left-0 right-0 h-[2.5px] bg-[#efeee9]/10 z-50 pointer-events-none"
+      aria-hidden="true"
+    >
+      <div
+        className="h-full w-full bg-gradient-to-r from-[#efeee9]/40 via-[#efeee9] to-[#efeee9] shadow-[0_0_12px_rgba(239,238,233,0.85)] origin-left will-change-transform"
+        style={{
+          transform: `scaleX(${progress / 100})`,
+          transition: 'transform 0.08s ease-out',
+        }}
+      />
+    </div>
+  )
+}
+
+// =========================================================================
+// FLOATING BACK-TO-TOP BUTTON (Circular SVG Progress Ring & Percentage)
+// =========================================================================
+
+function BackToTopButton({
+  scrollY,
+  scrollProgress,
+  onScrollToTop,
+}: {
+  scrollY: number
+  scrollProgress: number
+  onScrollToTop: () => void
+}) {
+  const radius = 18
+  const circumference = 2 * Math.PI * radius
+  const strokeDashoffset = circumference - (scrollProgress / 100) * circumference
+
+  return (
+    <button
+      onClick={onScrollToTop}
+      aria-label="Scroll back to top of page"
+      className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 p-2 sm:px-4 sm:py-2.5 rounded-full bg-[#121212]/90 backdrop-blur-md border border-[#efeee9]/25 text-[#efeee9] shadow-2xl transition-all duration-400 flex items-center gap-2.5 group hover:bg-[#efeee9] hover:text-black hover:border-[#efeee9] hover:scale-105 active:scale-95 cursor-pointer ${
+        scrollY > 400
+          ? 'opacity-100 translate-y-0 pointer-events-auto'
+          : 'opacity-0 translate-y-4 pointer-events-none'
+      }`}
+    >
+      <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+        <svg className="w-5 h-5 -rotate-90" viewBox="0 0 40 40">
+          <circle
+            cx="20"
+            cy="20"
+            r={radius}
+            className="stroke-[#efeee9]/20"
+            strokeWidth="3.5"
+            fill="transparent"
+          />
+          <circle
+            cx="20"
+            cy="20"
+            r={radius}
+            className="stroke-[#efeee9] group-hover:stroke-black transition-all duration-150"
+            strokeWidth="3.5"
+            fill="transparent"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+          />
+        </svg>
+        <ArrowUp
+          size={11}
+          className="absolute inset-0 m-auto group-hover:-translate-y-0.5 transition-transform duration-300"
+        />
+      </div>
+      <span className="hidden sm:inline-block text-[11px] font-mono uppercase tracking-widest font-medium">
+        Top &bull; {Math.round(scrollProgress)}%
+      </span>
+    </button>
+  )
+}
+
+// =========================================================================
+// CHAPTER RAIL INDICATOR (Desktop Right Rail, visible from xl: 1280px+)
 // =========================================================================
 
 function ChapterRail({
@@ -390,7 +505,7 @@ function ChapterRail({
   return (
     <aside
       aria-label="Chapter scroll navigation"
-      className="hidden 2xl:flex fixed right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-end gap-3.5 pointer-events-auto select-none"
+      className="hidden xl:flex fixed right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-end gap-3 pointer-events-auto select-none"
     >
       {sections.map((sec) => {
         const isActive = activeSection === sec.id
@@ -422,6 +537,115 @@ function ChapterRail({
         )
       })}
     </aside>
+  )
+}
+
+// =========================================================================
+// PARALLAX PHOTO CARD (Scroll-driven Translation on Archival Frames)
+// =========================================================================
+
+interface ParallaxPhotoCardProps {
+  item: ArchivalPhoto
+  index: number
+  onOpen: () => void
+}
+
+function ParallaxPhotoCard({ item, index, onOpen }: ParallaxPhotoCardProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [offsetY, setOffsetY] = useState(0)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return
+    }
+
+    const el = containerRef.current
+    if (!el) return
+
+    let ticking = false
+
+    const updateParallax = () => {
+      const rect = el.getBoundingClientRect()
+      const vh = window.innerHeight
+      if (rect.bottom > -80 && rect.top < vh + 80) {
+        // progress: -1 (at bottom of screen) to +1 (at top of screen)
+        const progress = (vh / 2 - (rect.top + rect.height / 2)) / (vh / 2)
+        // Gentle parallax translation between -24px and +24px
+        const y = Math.max(-24, Math.min(24, progress * 20))
+        setOffsetY(y)
+      }
+      ticking = false
+    }
+
+    const onScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(updateParallax)
+        ticking = true
+      }
+    }
+
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
+    updateParallax()
+
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+    }
+  }, [])
+
+  return (
+    <div
+      ref={containerRef}
+      onClick={onOpen}
+      className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.08)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
+    >
+      {/* Image Container with Scroll-Driven Parallax Translation */}
+      <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
+        <div
+          className="absolute -top-[12%] -bottom-[12%] inset-x-0 w-full h-[124%] will-change-transform"
+          style={{
+            transform: `translate3d(0, ${offsetY}px, 0)`,
+            transition: 'transform 0.12s cubic-bezier(0.25, 1, 0.5, 1)',
+          }}
+        >
+          <img
+            src={item.image}
+            alt={item.title}
+            loading="lazy"
+            className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
+          />
+        </div>
+
+        {/* Subtle Dark Vignette Overlay on Hover */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+        {/* Badge Overlay */}
+        <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10">
+          {item.badge}
+        </div>
+
+        {/* Quick View Button */}
+        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300 z-10">
+          <span>{item.date}</span>
+          <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+        </div>
+      </div>
+
+      {/* Caption Details */}
+      <div className="p-6 space-y-2 border-t border-[#efeee9]/10 bg-[#0f0f0f]/40">
+        <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
+          <span>{item.tag}</span>
+          <span>Frame 0{index + 1} / 0{ARCHIVAL_GALLERY.length}</span>
+        </div>
+        <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:text-[#efeee9] transition-colors">
+          {item.title}
+        </h4>
+        <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
+          {item.caption}
+        </p>
+      </div>
+    </div>
   )
 }
 
@@ -467,7 +691,7 @@ export default function App() {
     document.title = "Alice \u2014 Mystica \u2022 The Creative Archive"
   }, [])
 
-  // Optimized Scroll Tracking: Scrolled header state, reading progress, and active section
+  // Optimized Scroll Tracking: Scrolled header state, reading progress, and robust active section
   useEffect(() => {
     let ticking = false
 
@@ -485,15 +709,22 @@ export default function App() {
             setScrollProgress(Math.min(100, Math.max(0, pct)))
           }
 
-          // Active Section Calculation
-          const scrollPosition = currentY + 220
-          for (const section of [...SECTIONS].reverse()) {
-            const el = document.getElementById(section.id)
-            if (el) {
-              const top = el.offsetTop
-              if (scrollPosition >= top) {
-                setActiveSection(section.id)
-                break
+          // Robust Active Section Calculation with clamp
+          if (currentY < 120) {
+            setActiveSection('hero')
+          } else if (window.innerHeight + currentY >= document.documentElement.scrollHeight - 60) {
+            setActiveSection('contact')
+          } else {
+            const scrollPosition = currentY + 220
+            for (const section of [...SECTIONS].reverse()) {
+              const el = document.getElementById(section.id)
+              if (el) {
+                const rect = el.getBoundingClientRect()
+                const top = rect.top + currentY
+                if (scrollPosition >= top) {
+                  setActiveSection(section.id)
+                  break
+                }
               }
             }
           }
@@ -582,28 +813,17 @@ export default function App() {
     <div className="min-h-screen w-full bg-[#0d0d0d] text-[#efeee9] font-hn selection:bg-[#efeee9] selection:text-black relative">
 
       {/* =========================================================================
-          1. READING SCROLL PROGRESS BAR
-          Fixed ultra-thin cream indicator line at the very top of the window
+          1. READING SCROLL PROGRESS BAR (Compositor ScaleX Transform)
           ========================================================================= */}
-      <div
-        className="fixed top-0 left-0 right-0 h-[2.5px] bg-[#efeee9]/10 z-50 pointer-events-none"
-        aria-hidden="true"
-      >
-        <div
-          className="h-full bg-gradient-to-r from-[#efeee9]/40 via-[#efeee9] to-[#efeee9] shadow-[0_0_10px_rgba(239,238,233,0.7)] transition-[width] duration-100 ease-out"
-          style={{ width: `${scrollProgress}%` }}
-        />
-      </div>
+      <ReadingProgressBar progress={scrollProgress} />
 
       {/* =========================================================================
-          2. AMBIENT CURSOR SPOTLIGHT
-          Atmospheric radial glow tracking mouse movement across the dark background
+          2. AMBIENT CURSOR SPOTLIGHT (Lerp Physics, Zero State Re-renders)
           ========================================================================= */}
       <AmbientCursor />
 
       {/* =========================================================================
-          3. DESKTOP CHAPTER RAIL INDICATOR
-          Floating vertical chapter rail with numbers and tooltips
+          3. DESKTOP CHAPTER RAIL INDICATOR (Visible from xl: 1280px+)
           ========================================================================= */}
       <ChapterRail
         sections={SECTIONS}
@@ -612,23 +832,13 @@ export default function App() {
       />
 
       {/* =========================================================================
-          4. FLOATING BACK-TO-TOP BUTTON
-          Appears once scrolled past 400px with smooth return
+          4. FLOATING BACK-TO-TOP BUTTON (With Circular SVG Progress Ring)
           ========================================================================= */}
-      <button
-        onClick={scrollToTop}
-        aria-label="Scroll back to top of page"
-        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 px-3.5 py-3 rounded-full bg-[#121212]/90 backdrop-blur-md border border-[#efeee9]/25 text-[#efeee9] shadow-2xl transition-all duration-400 flex items-center gap-2 group hover:bg-[#efeee9] hover:text-black hover:border-[#efeee9] hover:scale-105 active:scale-95 cursor-pointer ${
-          scrollY > 400
-            ? 'opacity-100 translate-y-0 pointer-events-auto'
-            : 'opacity-0 translate-y-4 pointer-events-none'
-        }`}
-      >
-        <ArrowUp size={16} className="group-hover:-translate-y-0.5 transition-transform duration-300" />
-        <span className="hidden sm:inline-block text-[11px] font-mono uppercase tracking-widest font-medium">
-          Top
-        </span>
-      </button>
+      <BackToTopButton
+        scrollY={scrollY}
+        scrollProgress={scrollProgress}
+        onScrollToTop={scrollToTop}
+      />
 
       {/* =========================================================================
           GLOBAL STICKY HEADER & NAVIGATION
@@ -659,9 +869,9 @@ export default function App() {
         </a>
 
         {/* Section Transition Badge / Chapter Counter in Header */}
-        <div className="hidden md:flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#141414]/80 border border-[#efeee9]/15 text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/80 shadow-inner">
+        <div className="hidden md:flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#141414]/90 border border-[#efeee9]/15 text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/80 shadow-inner">
           <span className="w-1.5 h-1.5 rounded-full bg-[#efeee9] animate-pulse" />
-          <span>
+          <span key={activeSection} className="animate-fade-in inline-block">
             {currentSectionMeta.number} &bull; {currentSectionMeta.title}
           </span>
         </div>
@@ -687,7 +897,7 @@ export default function App() {
               >
                 {item.label}
                 {isActive && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#efeee9] rounded-full" />
+                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#efeee9] rounded-full shadow-[0_0_6px_rgba(239,238,233,0.6)]" />
                 )}
               </a>
             )
@@ -788,38 +998,42 @@ export default function App() {
 
       {/* =========================================================================
           HERO SECTION — ALICE — MYSTICA
-          High-end full-viewport editorial screen with Parallax Depth
+          High-end full-viewport editorial screen with Parallax Depth & Bleed
           ========================================================================= */}
       <section
         id="hero"
         className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between pt-24 pb-12 px-6 sm:px-12"
       >
-        {/* Layer 1: Alice's dramatic red noir photo with Parallax Depth Translation */}
-        <img
-          src={ASSETS.heroRed}
-          alt="Portrait of Alice Mystica in dramatic red noir lighting"
-          style={{
-            transform: `translate3d(0, ${scrollY * 0.3}px, 0) scale(${1 + Math.min(scrollY * 0.00025, 0.08)})`,
-          }}
-          className="absolute inset-0 h-full w-full object-cover object-center pointer-events-none anim-fade-in will-change-transform"
-        />
+        {/* Layer 1: Alice's dramatic red noir photo with Parallax Bleed Translation */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <img
+            src={ASSETS.heroRed}
+            alt="Portrait of Alice Mystica in dramatic red noir lighting"
+            style={{
+              transform: `translate3d(0, ${scrollY * 0.35}px, 0) scale(${1 + Math.min(scrollY * 0.00025, 0.06)})`,
+            }}
+            className="absolute -top-[12%] left-0 w-full h-[124%] object-cover object-center anim-fade-in will-change-transform"
+          />
+        </div>
 
         {/* Ambient Dark Gradient Overlays for high legibility */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-black/50 to-[#0d0d0d]/80 pointer-events-none" />
         <div className="absolute inset-0 bg-radial-gradient pointer-events-none opacity-40" />
 
-        {/* Layer 2: Infinite Marquee Typography with Subtly Reactive Scroll Offset */}
-        <div
-          className="relative z-10 my-auto py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee"
-          style={{
-            transform: `translate3d(${scrollY * -0.12}px, 0, 0)`,
-          }}
-        >
-          <div className="marquee flex w-max whitespace-nowrap font-hn text-[14vh] sm:text-[23vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
-            <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
-            <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
-            <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
-            <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
+        {/* Layer 2: Infinite Marquee Typography with Separated Entrance & Scroll Offset */}
+        <div className="relative z-10 my-auto py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee">
+          <div
+            style={{
+              transform: `translate3d(${scrollY * -0.15}px, 0, 0)`,
+            }}
+            className="will-change-transform"
+          >
+            <div className="marquee flex w-max whitespace-nowrap font-hn text-[14vh] sm:text-[23vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
+              <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
+              <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
+              <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
+              <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
+            </div>
           </div>
         </div>
 
@@ -884,7 +1098,7 @@ export default function App() {
 
           {/* Editorial Content Grid with Viewport Reveals */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-            {/* Left Column: Portrait Showcase with Parallax hover */}
+            {/* Left Column: Portrait Showcase with Frame Hover Scale */}
             <Reveal delay={100} className="lg:col-span-5 space-y-5">
               <div className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500">
                 <div className="relative overflow-hidden aspect-[4/5]">
@@ -1122,6 +1336,7 @@ export default function App() {
       {/* =========================================================================
           SECTION 03: ARCHIVAL PHOTOGRAPHY & MEMORIES
           Exclusively showcases the 5 uploaded photos with candid digicam captions
+          and Scroll-driven Parallax Depth on each Exhibition Frame
           ========================================================================= */}
       <section
         id="archive"
@@ -1148,7 +1363,7 @@ export default function App() {
             <RevealRule delay={150} />
           </div>
 
-          {/* Archival Photo Exhibition Grid with Staggered Viewport Reveals */}
+          {/* Archival Photo Exhibition Grid with Viewport Reveals & Scroll-Driven Parallax Depth */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {ARCHIVAL_GALLERY.map((item, index) => (
               <Reveal
@@ -1156,47 +1371,11 @@ export default function App() {
                 delay={index * 120}
                 className={item.spanClass || ''}
               >
-                <div
-                  onClick={() => openLightbox(index)}
-                  className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
-                >
-                  {/* Image Container with Hover Scale */}
-                  <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
-                    <img
-                      src={item.image}
-                      alt={item.title}
-                      loading="lazy"
-                      className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
-                    />
-                    {/* Subtle Dark Vignette Overlay on Hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-
-                    {/* Subtle Badge Overlay */}
-                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20">
-                      {item.badge}
-                    </div>
-
-                    {/* Quick View Button */}
-                    <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300">
-                      <span>{item.date}</span>
-                      <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                    </div>
-                  </div>
-
-                  {/* Caption Details */}
-                  <div className="p-6 space-y-2 border-t border-[#efeee9]/10 bg-[#0f0f0f]/40">
-                    <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
-                      <span>{item.tag}</span>
-                      <span>Frame 0{index + 1} / 0{ARCHIVAL_GALLERY.length}</span>
-                    </div>
-                    <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:text-[#efeee9] transition-colors">
-                      {item.title}
-                    </h4>
-                    <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
-                      {item.caption}
-                    </p>
-                  </div>
-                </div>
+                <ParallaxPhotoCard
+                  item={item}
+                  index={index}
+                  onOpen={() => openLightbox(index)}
+                />
               </Reveal>
             ))}
           </div>
