@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import {
   X,
   Menu,
   ArrowDown,
+  ArrowUp,
   ArrowUpRight,
   Sparkles,
   BookOpen,
@@ -12,10 +13,8 @@ import {
   Video,
   Mic,
   Award,
-  MessageSquare,
   Check,
   Compass,
-  Heart,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react'
@@ -187,6 +186,249 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
   }
 ]
 
+interface SectionItem {
+  id: string
+  number: string
+  title: string
+  navLabel: string
+}
+
+const SECTIONS: SectionItem[] = [
+  { id: 'hero', number: '00', title: 'Archive Index', navLabel: 'Top' },
+  { id: 'about', number: '01', title: 'Identity & Origin', navLabel: 'About' },
+  { id: 'interests', number: '02', title: 'Curation & Disciplines', navLabel: 'Interests' },
+  { id: 'archive', number: '03', title: 'Visual Chronicle', navLabel: 'Archive' },
+  { id: 'milestones', number: '04', title: 'Recognition & Honors', navLabel: 'Milestones' },
+  { id: 'philosophy', number: '05', title: 'Perspective & Vision', navLabel: 'Philosophy' },
+  { id: 'contact', number: '06', title: 'Inquiry & Dialogue', navLabel: 'Inquiry' },
+]
+
+// =========================================================================
+// REVEAL ON SCROLL COMPONENT (IntersectionObserver + Compositor Transform)
+// =========================================================================
+
+interface RevealProps {
+  children: React.ReactNode
+  className?: string
+  delay?: number
+  direction?: 'up' | 'down' | 'left' | 'right' | 'none'
+  distance?: number
+  duration?: number
+}
+
+function Reveal({
+  children,
+  className = '',
+  delay = 0,
+  direction = 'up',
+  distance = 28,
+  duration = 750,
+}: RevealProps) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIsVisible(true)
+      return
+    }
+
+    const el = ref.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.unobserve(el)
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '0px 0px -40px 0px',
+      }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const getTransform = () => {
+    if (isVisible) return 'translate3d(0, 0, 0)'
+    switch (direction) {
+      case 'up':
+        return `translate3d(0, ${distance}px, 0)`
+      case 'down':
+        return `translate3d(0, -${distance}px, 0)`
+      case 'left':
+        return `translate3d(${distance}px, 0, 0)`
+      case 'right':
+        return `translate3d(-${distance}px, 0, 0)`
+      case 'none':
+      default:
+        return 'translate3d(0, 0, 0)'
+    }
+  }
+
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: isVisible ? 1 : 0,
+        transform: getTransform(),
+        transitionProperty: 'opacity, transform',
+        transitionDuration: `${duration}ms`,
+        transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        transitionDelay: `${delay}ms`,
+        willChange: 'opacity, transform',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+// =========================================================================
+// REVEAL RULE (Line expand on viewport enter)
+// =========================================================================
+
+function RevealRule({ className = '', delay = 100 }: { className?: string; delay?: number }) {
+  const [isVisible, setIsVisible] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setIsVisible(true)
+      return
+    }
+
+    const el = ref.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true)
+          observer.unobserve(el)
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <div ref={ref} className={`overflow-hidden ${className}`}>
+      <div
+        className="h-[1px] w-full bg-[#efeee9]/20 transition-transform duration-1000 origin-left"
+        style={{
+          transform: isVisible ? 'scaleX(1)' : 'scaleX(0)',
+          transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+          transitionDelay: `${delay}ms`,
+        }}
+      />
+    </div>
+  )
+}
+
+// =========================================================================
+// AMBIENT CURSOR SPOTLIGHT
+// =========================================================================
+
+function AmbientCursor() {
+  const [pos, setPos] = useState({ x: -1000, y: -1000 })
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    if (!window.matchMedia('(pointer: fine)').matches) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      setPos({ x: e.clientX, y: e.clientY })
+      if (!visible) setVisible(true)
+    }
+
+    const handleMouseLeave = () => {
+      setVisible(false)
+    }
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true })
+    document.addEventListener('mouseleave', handleMouseLeave)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [visible])
+
+  return (
+    <div
+      className="pointer-events-none fixed inset-0 z-30 transition-opacity duration-700 hidden sm:block"
+      style={{
+        opacity: visible ? 1 : 0,
+        background: `radial-gradient(650px circle at ${pos.x}px ${pos.y}px, rgba(239, 238, 233, 0.045), transparent 65%)`,
+      }}
+      aria-hidden="true"
+    />
+  )
+}
+
+// =========================================================================
+// CHAPTER RAIL INDICATOR (Desktop Right Rail)
+// =========================================================================
+
+function ChapterRail({
+  sections,
+  activeSection,
+  onNavigate,
+}: {
+  sections: SectionItem[]
+  activeSection: string
+  onNavigate: (id: string) => void
+}) {
+  return (
+    <aside
+      aria-label="Chapter scroll navigation"
+      className="hidden 2xl:flex fixed right-6 top-1/2 -translate-y-1/2 z-40 flex-col items-end gap-3.5 pointer-events-auto select-none"
+    >
+      {sections.map((sec) => {
+        const isActive = activeSection === sec.id
+        return (
+          <button
+            key={sec.id}
+            onClick={() => onNavigate(sec.id)}
+            aria-label={`Navigate to chapter ${sec.number}: ${sec.title}`}
+            aria-current={isActive ? 'true' : undefined}
+            className="group flex items-center gap-3 py-1 text-right focus:outline-none cursor-pointer"
+          >
+            <span
+              className={`text-[10px] font-mono uppercase tracking-widest transition-all duration-300 ${
+                isActive
+                  ? 'opacity-100 text-[#efeee9] translate-x-0 font-medium'
+                  : 'opacity-0 -translate-x-2 text-[#efeee9]/40 group-hover:opacity-100 group-hover:translate-x-0'
+              }`}
+            >
+              {sec.number} &bull; {sec.navLabel}
+            </span>
+            <div
+              className={`transition-all duration-400 rounded-full ${
+                isActive
+                  ? 'w-7 h-1.5 bg-[#efeee9] shadow-[0_0_8px_rgba(239,238,233,0.7)]'
+                  : 'w-1.5 h-1.5 bg-[#efeee9]/30 group-hover:bg-[#efeee9]/70 group-hover:scale-150'
+              }`}
+            />
+          </button>
+        )
+      })}
+    </aside>
+  )
+}
+
+// =========================================================================
+// MAIN APP COMPONENT
+// =========================================================================
+
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedInterest, setSelectedInterest] = useState<number>(0)
@@ -194,6 +436,9 @@ export default function App() {
   const [messageForm, setMessageForm] = useState({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
   const [messageSubmitted, setMessageSubmitted] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const [scrollY, setScrollY] = useState(0)
+  const [activeSection, setActiveSection] = useState<string>('hero')
 
   const lightboxPhoto = lightboxIndex !== null ? ARCHIVAL_GALLERY[lightboxIndex] : null
 
@@ -219,19 +464,48 @@ export default function App() {
 
   // Document Title
   useEffect(() => {
-    document.title = "Alice \u2014 Mystica"
+    document.title = "Alice \u2014 Mystica \u2022 The Creative Archive"
   }, [])
 
-  // Header scroll appearance
+  // Optimized Scroll Tracking: Scrolled header state, reading progress, and active section
   useEffect(() => {
+    let ticking = false
+
     const handleScroll = () => {
-      if (window.scrollY > 40) {
-        setScrolled(true)
-      } else {
-        setScrolled(false)
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentY = window.scrollY
+          setScrollY(currentY)
+          setScrolled(currentY > 40)
+
+          // Scroll Progress percentage
+          const totalHeight = document.documentElement.scrollHeight - window.innerHeight
+          if (totalHeight > 0) {
+            const pct = (currentY / totalHeight) * 100
+            setScrollProgress(Math.min(100, Math.max(0, pct)))
+          }
+
+          // Active Section Calculation
+          const scrollPosition = currentY + 220
+          for (const section of [...SECTIONS].reverse()) {
+            const el = document.getElementById(section.id)
+            if (el) {
+              const top = el.offsetTop
+              if (scrollPosition >= top) {
+                setActiveSection(section.id)
+                break
+              }
+            }
+          }
+
+          ticking = false
+        })
+        ticking = true
       }
     }
+
     window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
@@ -292,13 +566,69 @@ export default function App() {
     }, 40)
   }
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.history.pushState(null, '', '#hero')
+  }
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setMessageSubmitted(true)
   }
 
+  const currentSectionMeta = SECTIONS.find((s) => s.id === activeSection) || SECTIONS[0]
+
   return (
-    <div className="min-h-screen w-full bg-[#0d0d0d] text-[#efeee9] font-hn selection:bg-[#efeee9] selection:text-black">
+    <div className="min-h-screen w-full bg-[#0d0d0d] text-[#efeee9] font-hn selection:bg-[#efeee9] selection:text-black relative">
+
+      {/* =========================================================================
+          1. READING SCROLL PROGRESS BAR
+          Fixed ultra-thin cream indicator line at the very top of the window
+          ========================================================================= */}
+      <div
+        className="fixed top-0 left-0 right-0 h-[2.5px] bg-[#efeee9]/10 z-50 pointer-events-none"
+        aria-hidden="true"
+      >
+        <div
+          className="h-full bg-gradient-to-r from-[#efeee9]/40 via-[#efeee9] to-[#efeee9] shadow-[0_0_10px_rgba(239,238,233,0.7)] transition-[width] duration-100 ease-out"
+          style={{ width: `${scrollProgress}%` }}
+        />
+      </div>
+
+      {/* =========================================================================
+          2. AMBIENT CURSOR SPOTLIGHT
+          Atmospheric radial glow tracking mouse movement across the dark background
+          ========================================================================= */}
+      <AmbientCursor />
+
+      {/* =========================================================================
+          3. DESKTOP CHAPTER RAIL INDICATOR
+          Floating vertical chapter rail with numbers and tooltips
+          ========================================================================= */}
+      <ChapterRail
+        sections={SECTIONS}
+        activeSection={activeSection}
+        onNavigate={handleNavClick}
+      />
+
+      {/* =========================================================================
+          4. FLOATING BACK-TO-TOP BUTTON
+          Appears once scrolled past 400px with smooth return
+          ========================================================================= */}
+      <button
+        onClick={scrollToTop}
+        aria-label="Scroll back to top of page"
+        className={`fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-40 px-3.5 py-3 rounded-full bg-[#121212]/90 backdrop-blur-md border border-[#efeee9]/25 text-[#efeee9] shadow-2xl transition-all duration-400 flex items-center gap-2 group hover:bg-[#efeee9] hover:text-black hover:border-[#efeee9] hover:scale-105 active:scale-95 cursor-pointer ${
+          scrollY > 400
+            ? 'opacity-100 translate-y-0 pointer-events-auto'
+            : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+      >
+        <ArrowUp size={16} className="group-hover:-translate-y-0.5 transition-transform duration-300" />
+        <span className="hidden sm:inline-block text-[11px] font-mono uppercase tracking-widest font-medium">
+          Top
+        </span>
+      </button>
 
       {/* =========================================================================
           GLOBAL STICKY HEADER & NAVIGATION
@@ -328,47 +658,48 @@ export default function App() {
           </span>
         </a>
 
-        {/* Desktop Nav Links */}
-        <nav className="hidden lg:flex items-center gap-8 text-sm font-light tracking-wide text-[#efeee9]/80">
-          <a
-            href="#about"
-            onClick={(e) => handleNavClick('about', e)}
-            className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
-          >
-            About
-          </a>
-          <a
-            href="#interests"
-            onClick={(e) => handleNavClick('interests', e)}
-            className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
-          >
-            Interests
-          </a>
-          <a
-            href="#archive"
-            onClick={(e) => handleNavClick('archive', e)}
-            className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
-          >
-            Archive
-          </a>
-          <a
-            href="#milestones"
-            onClick={(e) => handleNavClick('milestones', e)}
-            className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
-          >
-            Milestones
-          </a>
-          <a
-            href="#philosophy"
-            onClick={(e) => handleNavClick('philosophy', e)}
-            className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
-          >
-            Philosophy
-          </a>
+        {/* Section Transition Badge / Chapter Counter in Header */}
+        <div className="hidden md:flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#141414]/80 border border-[#efeee9]/15 text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/80 shadow-inner">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#efeee9] animate-pulse" />
+          <span>
+            {currentSectionMeta.number} &bull; {currentSectionMeta.title}
+          </span>
+        </div>
+
+        {/* Desktop Nav Links with Active State Highlighting */}
+        <nav className="hidden lg:flex items-center gap-7 text-sm font-light tracking-wide">
+          {[
+            { id: 'about', label: 'About' },
+            { id: 'interests', label: 'Interests' },
+            { id: 'archive', label: 'Archive' },
+            { id: 'milestones', label: 'Milestones' },
+            { id: 'philosophy', label: 'Philosophy' },
+          ].map((item) => {
+            const isActive = activeSection === item.id
+            return (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                onClick={(e) => handleNavClick(item.id, e)}
+                className={`relative py-1 transition-colors duration-200 cursor-pointer ${
+                  isActive ? 'text-[#efeee9] font-normal' : 'text-[#efeee9]/60 hover:text-[#efeee9]'
+                }`}
+              >
+                {item.label}
+                {isActive && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#efeee9] rounded-full" />
+                )}
+              </a>
+            )
+          })}
           <a
             href="#contact"
             onClick={(e) => handleNavClick('contact', e)}
-            className="px-4 py-2 border border-[#efeee9]/30 text-xs uppercase tracking-widest hover:bg-[#efeee9] hover:text-black transition-all duration-300 cursor-pointer"
+            className={`px-4 py-2 border text-xs uppercase tracking-widest transition-all duration-300 cursor-pointer ${
+              activeSection === 'contact'
+                ? 'bg-[#efeee9] text-black border-[#efeee9]'
+                : 'border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black'
+            }`}
           >
             Inquiry
           </a>
@@ -396,7 +727,7 @@ export default function App() {
         {/* Backdrop */}
         <div
           onClick={() => setDrawerOpen(false)}
-          className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/75 backdrop-blur-sm"
         />
 
         {/* Panel */}
@@ -408,68 +739,82 @@ export default function App() {
           <div>
             {/* Close Button */}
             <div className="flex items-center justify-between pb-6 border-b border-[#efeee9]/15">
-              <span className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50">Site Navigation</span>
+              <span className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 font-mono">
+                Site Navigation
+              </span>
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="text-[#efeee9] p-1 hover:opacity-60 transition-opacity"
+                className="text-[#efeee9] p-1 hover:opacity-60 transition-opacity cursor-pointer"
               >
                 <X size={24} strokeWidth={1.5} />
               </button>
             </div>
 
-            {/* Menu Links */}
-            <nav className="mt-8 flex flex-col gap-6">
-              {[
-                { label: "01. Hero Top", id: "hero" },
-                { label: "02. About Me", id: "about" },
-                { label: "03. 8 Creative Interests", id: "interests" },
-                { label: "04. Archival Photography", id: "archive" },
-                { label: "05. Milestones & Honors", id: "milestones" },
-                { label: "06. Philosophy & Beyond", id: "philosophy" },
-                { label: "07. Contact & Dialogue", id: "contact" },
-              ].map((link) => (
-                <a
-                  key={link.id}
-                  href={`#${link.id}`}
-                  onClick={(e) => handleNavClick(link.id, e)}
-                  className="text-left text-2xl font-light text-[#efeee9] hover:text-[#efeee9]/60 transition-colors cursor-pointer"
-                >
-                  {link.label}
-                </a>
-              ))}
+            {/* Menu Links with Active Chapter Counter */}
+            <nav className="mt-8 flex flex-col gap-5">
+              {SECTIONS.map((link) => {
+                const isActive = activeSection === link.id
+                return (
+                  <a
+                    key={link.id}
+                    href={`#${link.id}`}
+                    onClick={(e) => handleNavClick(link.id, e)}
+                    className={`text-left text-xl sm:text-2xl font-light transition-colors flex items-center justify-between cursor-pointer ${
+                      isActive ? 'text-[#efeee9] font-normal' : 'text-[#efeee9]/60 hover:text-[#efeee9]'
+                    }`}
+                  >
+                    <span>{link.number}. {link.navLabel}</span>
+                    {isActive && (
+                      <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9] px-2 py-0.5 border border-[#efeee9]/30">
+                        Current
+                      </span>
+                    )}
+                  </a>
+                )
+              })}
             </nav>
           </div>
 
-          <div className="pt-6 border-t border-[#efeee9]/15 text-xs text-[#efeee9]/50 space-y-2">
-            <p className="tracking-widest uppercase text-[#efeee9]/70">R Alice Mystica</p>
+          <div className="pt-6 border-t border-[#efeee9]/15 text-xs text-[#efeee9]/50 space-y-2 font-light">
+            <p className="tracking-widest uppercase text-[#efeee9]/70 font-mono">R Alice Mystica</p>
             <p>BBA Scholar &bull; Creative Archivist</p>
-            <p className="pt-2 italic text-[#efeee9]/40">&ldquo;A collection of creativity, expression, memories, and becoming.&rdquo;</p>
+            <p className="pt-2 italic text-[#efeee9]/40 font-serif">
+              &ldquo;A collection of creativity, expression, memories, and becoming.&rdquo;
+            </p>
           </div>
         </div>
       </div>
 
       {/* =========================================================================
           HERO SECTION — ALICE — MYSTICA
-          High-end full-viewport editorial screen, smoothly scrollable to sections below
+          High-end full-viewport editorial screen with Parallax Depth
           ========================================================================= */}
       <section
         id="hero"
         className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between pt-24 pb-12 px-6 sm:px-12"
       >
-        {/* Layer 1: Alice's dramatic red noir photo (Hero background) */}
+        {/* Layer 1: Alice's dramatic red noir photo with Parallax Depth Translation */}
         <img
           src={ASSETS.heroRed}
           alt="Portrait of Alice Mystica in dramatic red noir lighting"
-          className="absolute inset-0 h-full w-full object-cover object-center pointer-events-none anim-fade-in"
+          style={{
+            transform: `translate3d(0, ${scrollY * 0.3}px, 0) scale(${1 + Math.min(scrollY * 0.00025, 0.08)})`,
+          }}
+          className="absolute inset-0 h-full w-full object-cover object-center pointer-events-none anim-fade-in will-change-transform"
         />
 
         {/* Ambient Dark Gradient Overlays for high legibility */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-black/50 to-[#0d0d0d]/80 pointer-events-none" />
         <div className="absolute inset-0 bg-radial-gradient pointer-events-none opacity-40" />
 
-        {/* Layer 2: Infinite Marquee Typography */}
-        <div className="relative z-10 my-auto py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee">
+        {/* Layer 2: Infinite Marquee Typography with Subtly Reactive Scroll Offset */}
+        <div
+          className="relative z-10 my-auto py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee"
+          style={{
+            transform: `translate3d(${scrollY * -0.12}px, 0, 0)`,
+          }}
+        >
           <div className="marquee flex w-max whitespace-nowrap font-hn text-[14vh] sm:text-[23vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
             <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
             <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
@@ -491,14 +836,14 @@ export default function App() {
             <span className="text-[#efeee9]/70">Visual Storyteller &bull; BBA Scholar &bull; Observer</span>
           </div>
 
-          {/* Centered Scroll Indicator */}
+          {/* Centered Scroll Indicator with bounce */}
           <a
             href="#about"
             onClick={(e) => handleNavClick('about', e)}
-            className="mx-auto sm:mx-0 flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer"
+            className="mx-auto sm:mx-0 flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer shadow-lg"
           >
             <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
-            <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300" />
+            <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300 animate-bounce" />
           </a>
 
           <div className="anim-fade-up delay-footer-right text-left sm:text-right flex flex-col gap-0.5">
@@ -517,52 +862,58 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header */}
-          <div className="border-b border-[#efeee9]/20 pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-                01 / Identity &amp; Origin
-              </span>
-              <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-                ALICE &mdash; THE CREATIVE ARCHIVE
-              </h2>
-            </div>
-            <p className="text-[#efeee9]/70 text-lg md:text-xl font-light italic max-w-md">
-              &ldquo;A collection of creativity, expression, memories, and becoming.&rdquo;
-            </p>
+          {/* Section Header with Animated Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
+                    01 / Identity &amp; Origin
+                  </span>
+                  <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                    ALICE &mdash; THE CREATIVE ARCHIVE
+                  </h2>
+                </div>
+                <p className="text-[#efeee9]/70 text-lg md:text-xl font-light italic max-w-md font-serif">
+                  &ldquo;A collection of creativity, expression, memories, and becoming.&rdquo;
+                </p>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
-          {/* Editorial Content Grid */}
+          {/* Editorial Content Grid with Viewport Reveals */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
-            {/* Left Column: Portrait Showcase */}
-            <div className="lg:col-span-5 space-y-5">
-              <div className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2">
+            {/* Left Column: Portrait Showcase with Parallax hover */}
+            <Reveal delay={100} className="lg:col-span-5 space-y-5">
+              <div className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500">
                 <div className="relative overflow-hidden aspect-[4/5]">
                   <img
                     src={ASSETS.smilePortrait}
                     alt="Alice Mystica smiling portrait with (Can you kiss me more?)"
+                    loading="lazy"
                     className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-editorial"
                   />
                   <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-[#efeee9] border border-[#efeee9]/20 font-mono">
                     Archive Ref &bull; 02
                   </div>
-                  <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm px-3 py-1 text-[10px] italic text-[#efeee9]/90 border border-[#efeee9]/20">
+                  <div className="absolute bottom-4 right-4 bg-black/70 backdrop-blur-sm px-3 py-1 text-[10px] italic text-[#efeee9]/90 border border-[#efeee9]/20 font-serif">
                     &ldquo;(Can you kiss me more?)&rdquo;
                   </div>
                 </div>
               </div>
               <div className="space-y-1 text-center sm:text-left">
-                <div className="text-sm tracking-wide text-[#efeee9] font-medium uppercase">
+                <div className="text-sm tracking-wide text-[#efeee9] font-medium uppercase font-mono">
                   R Alice Mystica
                 </div>
                 <div className="text-xs text-[#efeee9]/60 font-light">
                   BBA Academic Scholar &bull; Creative Archivist &bull; Observer
                 </div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Right Column: Narrative Texts */}
-            <div className="lg:col-span-7 space-y-8 text-[#efeee9]/90 font-light text-base sm:text-lg leading-relaxed">
+            <Reveal delay={200} className="lg:col-span-7 space-y-8 text-[#efeee9]/90 font-light text-base sm:text-lg leading-relaxed">
               <div className="space-y-4">
                 <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight flex items-center gap-3">
                   <span className="w-6 h-[1px] bg-[#efeee9]/60" />
@@ -579,31 +930,31 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Three Pillar Cards */}
+              {/* Three Pillar Cards with Staggered Delays & Hover Glow */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-6 border-t border-[#efeee9]/15">
-                <div className="p-5 bg-black/40 border border-[#efeee9]/15 space-y-2">
+                <div className="p-5 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/50 hover:bg-[#141414] transition-all duration-300 space-y-2 group">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">01 / Focus</span>
-                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">BBA Academic</h4>
+                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider group-hover:text-[#efeee9]">BBA Academic</h4>
                   <p className="text-xs text-[#efeee9]/70 leading-relaxed font-light">
                     Business administration, strategic communication, organizational thinking, and turning concepts into real-world initiatives.
                   </p>
                 </div>
-                <div className="p-5 bg-black/40 border border-[#efeee9]/15 space-y-2">
+                <div className="p-5 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/50 hover:bg-[#141414] transition-all duration-300 space-y-2 group">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">02 / Expression</span>
-                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">Visual &amp; Style</h4>
+                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider group-hover:text-[#efeee9]">Visual &amp; Style</h4>
                   <p className="text-xs text-[#efeee9]/70 leading-relaxed font-light">
                     Archival photography, nostalgic aesthetics, makeup experimentation, and personal style as visual communication.
                   </p>
                 </div>
-                <div className="p-5 bg-black/40 border border-[#efeee9]/15 space-y-2">
+                <div className="p-5 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/50 hover:bg-[#141414] transition-all duration-300 space-y-2 group">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">03 / Voice</span>
-                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">Public Speaking</h4>
+                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider group-hover:text-[#efeee9]">Public Speaking</h4>
                   <p className="text-xs text-[#efeee9]/70 leading-relaxed font-light">
                     Storytelling, articulate presentation, and engaging audiences with poise, clarity, and genuine empathy.
                   </p>
                 </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -616,125 +967,151 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header */}
-          <div className="border-b border-[#efeee9]/20 pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-                02 / Curation &amp; Disciplines
-              </span>
-              <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-                THE EIGHT CREATIVE INTERESTS
-              </h2>
-            </div>
-            <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
-              Eight distinct avenues of exploration, aesthetics, and expression through which I document and interpret life.
-            </p>
+          {/* Section Header with Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
+                    02 / Curation &amp; Disciplines
+                  </span>
+                  <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                    THE EIGHT CREATIVE INTERESTS
+                  </h2>
+                </div>
+                <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
+                  Eight distinct avenues of exploration, aesthetics, and expression through which I document and interpret life.
+                </p>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
           {/* Interactive Category Selector Tabs */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-            {CREATIVE_INTERESTS.map((item, index) => {
-              const IconComponent = item.icon
-              const isSelected = selectedInterest === index
-              return (
-                <button
-                  key={item.number}
-                  onClick={() => setSelectedInterest(index)}
-                  className={`p-3 text-left border transition-all duration-300 flex flex-col justify-between h-28 ${
-                    isSelected
-                      ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-lg scale-[1.02]'
-                      : 'bg-black/40 text-[#efeee9]/80 border-[#efeee9]/15 hover:border-[#efeee9]/40 hover:text-[#efeee9]'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs">{item.number}</span>
-                    <IconComponent size={14} className={isSelected ? 'text-black' : 'text-[#efeee9]/50'} />
-                  </div>
-                  <div>
-                    <span className="text-[10px] block opacity-60 uppercase tracking-widest">{item.category.split('&')[0]}</span>
-                    <span className="text-xs font-normal line-clamp-2 leading-tight">{item.title}</span>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Featured Deep-Dive on Active Category */}
-          <div className="p-8 sm:p-12 bg-black/60 border border-[#efeee9]/20 shadow-2xl relative overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-8 space-y-6">
-                <div className="flex items-center gap-4">
-                  <span className="px-3 py-1 bg-[#efeee9]/10 text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/70 border border-[#efeee9]/20">
-                    Category {CREATIVE_INTERESTS[selectedInterest].number} / 08
-                  </span>
-                  <span className="text-xs text-[#efeee9]/40 uppercase tracking-widest">
-                    {CREATIVE_INTERESTS[selectedInterest].category}
-                  </span>
-                </div>
-
-                <h3 className="text-3xl sm:text-5xl font-light text-[#efeee9] tracking-tight">
-                  {CREATIVE_INTERESTS[selectedInterest].title}
-                </h3>
-
-                <p className="text-base sm:text-lg text-[#efeee9]/85 font-light leading-relaxed">
-                  {CREATIVE_INTERESTS[selectedInterest].desc}
-                </p>
-
-                <div className="pl-6 border-l-2 border-[#efeee9]/50 italic text-base sm:text-lg text-[#efeee9] py-1 font-serif">
-                  &ldquo;{CREATIVE_INTERESTS[selectedInterest].quote}&rdquo;
-                </div>
-              </div>
-
-              {/* Editorial Icon & Visual Card */}
-              <div className="lg:col-span-4 flex flex-col justify-center items-center p-8 bg-[#141414] border border-[#efeee9]/15 text-center space-y-4">
-                {(() => {
-                  const CurrentIcon = CREATIVE_INTERESTS[selectedInterest].icon
-                  return (
-                    <div className="w-16 h-16 rounded-full border border-[#efeee9]/30 flex items-center justify-center bg-black/50 text-[#efeee9]">
-                      <CurrentIcon size={28} strokeWidth={1.5} />
+          <Reveal delay={100}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+              {CREATIVE_INTERESTS.map((item, index) => {
+                const IconComponent = item.icon
+                const isSelected = selectedInterest === index
+                return (
+                  <button
+                    key={item.number}
+                    onClick={() => setSelectedInterest(index)}
+                    className={`p-3.5 text-left border transition-all duration-300 flex flex-col justify-between h-32 group cursor-pointer ${
+                      isSelected
+                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_20px_rgba(239,238,233,0.25)] scale-[1.02]'
+                        : 'bg-black/40 text-[#efeee9]/80 border-[#efeee9]/15 hover:border-[#efeee9]/50 hover:bg-[#161616]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-xs">{item.number}</span>
+                      <IconComponent
+                        size={15}
+                        className={`transition-transform duration-300 group-hover:scale-110 ${
+                          isSelected ? 'text-black' : 'text-[#efeee9]/50'
+                        }`}
+                      />
                     </div>
-                  )
-                })()}
-                <div className="space-y-1">
-                  <span className="text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">Archive Discipline</span>
-                  <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">
+                    <div>
+                      <span className="text-[10px] block opacity-60 uppercase tracking-widest font-mono">
+                        {item.category.split('&')[0]}
+                      </span>
+                      <span className="text-xs font-normal line-clamp-2 leading-tight">
+                        {item.title}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </Reveal>
+
+          {/* Featured Deep-Dive on Active Category with Animated Transition */}
+          <Reveal delay={200}>
+            <div
+              key={selectedInterest}
+              className="p-8 sm:p-12 bg-black/60 border border-[#efeee9]/20 shadow-2xl relative overflow-hidden anim-fade-in"
+            >
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                <div className="lg:col-span-8 space-y-6">
+                  <div className="flex flex-wrap items-center gap-4">
+                    <span className="px-3 py-1 bg-[#efeee9]/10 text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/80 border border-[#efeee9]/20">
+                      Category {CREATIVE_INTERESTS[selectedInterest].number} / 08
+                    </span>
+                    <span className="text-xs text-[#efeee9]/50 uppercase tracking-widest font-mono">
+                      {CREATIVE_INTERESTS[selectedInterest].category}
+                    </span>
+                  </div>
+
+                  <h3 className="text-3xl sm:text-5xl font-light text-[#efeee9] tracking-tight">
                     {CREATIVE_INTERESTS[selectedInterest].title}
-                  </h4>
+                  </h3>
+
+                  <p className="text-base sm:text-lg text-[#efeee9]/85 font-light leading-relaxed">
+                    {CREATIVE_INTERESTS[selectedInterest].desc}
+                  </p>
+
+                  <div className="pl-6 border-l-2 border-[#efeee9]/60 italic text-base sm:text-lg text-[#efeee9] py-1 font-serif">
+                    &ldquo;{CREATIVE_INTERESTS[selectedInterest].quote}&rdquo;
+                  </div>
                 </div>
-                <p className="text-xs text-[#efeee9]/60 italic">
-                  Documenting life, creative intuition, and self-expression.
-                </p>
+
+                {/* Editorial Icon & Visual Card */}
+                <div className="lg:col-span-4 flex flex-col justify-center items-center p-8 bg-[#141414] border border-[#efeee9]/15 text-center space-y-4 hover:border-[#efeee9]/40 transition-colors">
+                  {(() => {
+                    const CurrentIcon = CREATIVE_INTERESTS[selectedInterest].icon
+                    return (
+                      <div className="w-16 h-16 rounded-full border border-[#efeee9]/30 flex items-center justify-center bg-black/50 text-[#efeee9] shadow-inner">
+                        <CurrentIcon size={28} strokeWidth={1.5} />
+                      </div>
+                    )
+                  })()}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">
+                      Archive Discipline
+                    </span>
+                    <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">
+                      {CREATIVE_INTERESTS[selectedInterest].title}
+                    </h4>
+                  </div>
+                  <p className="text-xs text-[#efeee9]/60 italic font-serif">
+                    Documenting life, creative intuition, and self-expression.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          </Reveal>
 
           {/* Full Grid of All 8 Interests for Comprehensive Reading */}
           <div className="space-y-4 pt-6">
-            <h4 className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 font-mono">
-              Complete Discipline Directory
-            </h4>
+            <Reveal delay={100}>
+              <h4 className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 font-mono">
+                Complete Discipline Directory
+              </h4>
+            </Reveal>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {CREATIVE_INTERESTS.map((interest, idx) => {
                 const InterestIcon = interest.icon
                 return (
-                  <div
-                    key={interest.number}
-                    className="p-6 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/40 transition-colors duration-300 space-y-4"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-sm text-[#efeee9]/60">{interest.number}</span>
-                        <h4 className="text-lg font-normal text-[#efeee9]">{interest.title}</h4>
+                  <Reveal key={interest.number} delay={(idx % 2) * 120 + 100}>
+                    <div className="p-6 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/45 hover:bg-black/60 transition-all duration-300 space-y-4 h-full flex flex-col justify-between">
+                      <div className="space-y-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-sm text-[#efeee9]/60">{interest.number}</span>
+                            <h4 className="text-lg font-normal text-[#efeee9]">{interest.title}</h4>
+                          </div>
+                          <InterestIcon size={18} className="text-[#efeee9]/40" />
+                        </div>
+                        <p className="text-sm text-[#efeee9]/75 font-light leading-relaxed">
+                          {interest.desc}
+                        </p>
                       </div>
-                      <InterestIcon size={18} className="text-[#efeee9]/40" />
+                      <div className="pt-3 text-xs text-[#efeee9]/60 italic font-serif border-t border-[#efeee9]/10">
+                        &ldquo;{interest.quote}&rdquo;
+                      </div>
                     </div>
-                    <p className="text-sm text-[#efeee9]/75 font-light leading-relaxed">
-                      {interest.desc}
-                    </p>
-                    <div className="pt-2 text-xs text-[#efeee9]/60 italic font-serif border-t border-[#efeee9]/10">
-                      &ldquo;{interest.quote}&rdquo;
-                    </div>
-                  </div>
+                  </Reveal>
                 )
               })}
             </div>
@@ -751,79 +1128,95 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header */}
-          <div className="border-b border-[#efeee9]/20 pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-                03 / Visual Chronicle
-              </span>
-              <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-                ARCHIVAL PHOTOGRAPHY &amp; MEMORIES
-              </h2>
-            </div>
-            <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
-              Candid frames, digicam aesthetics, childhood archives, and nostalgic moments preserved through time.
-            </p>
+          {/* Section Header with Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
+                    03 / Visual Chronicle
+                  </span>
+                  <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                    ARCHIVAL PHOTOGRAPHY &amp; MEMORIES
+                  </h2>
+                </div>
+                <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
+                  Candid frames, digicam aesthetics, childhood archives, and nostalgic moments preserved through time.
+                </p>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
-          {/* Archival Photo Exhibition Grid */}
+          {/* Archival Photo Exhibition Grid with Staggered Viewport Reveals */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {ARCHIVAL_GALLERY.map((item, index) => (
-              <div
+              <Reveal
                 key={item.id}
-                onClick={() => openLightbox(index)}
-                className={`group cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/50 transition-all duration-500 overflow-hidden flex flex-col justify-between ${
-                  item.spanClass || ''
-                }`}
+                delay={index * 120}
+                className={item.spanClass || ''}
               >
-                {/* Image Container */}
-                <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
-                  <img
-                    src={item.image}
-                    alt={item.title}
-                    className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
-                  />
-                  {/* Subtle Badge Overlay */}
-                  <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20">
-                    {item.badge}
-                  </div>
-                  <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/70 border border-[#efeee9]/20 flex items-center gap-1.5">
-                    <span>{item.date}</span>
-                    <ArrowUpRight size={11} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                  </div>
-                </div>
+                <div
+                  onClick={() => openLightbox(index)}
+                  className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
+                >
+                  {/* Image Container with Hover Scale */}
+                  <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
+                    <img
+                      src={item.image}
+                      alt={item.title}
+                      loading="lazy"
+                      className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
+                    />
+                    {/* Subtle Dark Vignette Overlay on Hover */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
-                {/* Caption Details */}
-                <div className="p-6 space-y-2 border-t border-[#efeee9]/10">
-                  <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
-                    <span>{item.tag}</span>
-                    <span>Frame 0{index + 1}</span>
+                    {/* Subtle Badge Overlay */}
+                    <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20">
+                      {item.badge}
+                    </div>
+
+                    {/* Quick View Button */}
+                    <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300">
+                      <span>{item.date}</span>
+                      <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </div>
                   </div>
-                  <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:opacity-80 transition-opacity">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
-                    {item.caption}
-                  </p>
+
+                  {/* Caption Details */}
+                  <div className="p-6 space-y-2 border-t border-[#efeee9]/10 bg-[#0f0f0f]/40">
+                    <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
+                      <span>{item.tag}</span>
+                      <span>Frame 0{index + 1} / 0{ARCHIVAL_GALLERY.length}</span>
+                    </div>
+                    <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:text-[#efeee9] transition-colors">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
+                      {item.caption}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
 
           {/* Digicam Manifesto Statement */}
-          <div className="p-8 bg-[#111111] border-l-2 border-[#efeee9]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <span className="text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/50">
-                Visual Philosophy &bull; Digicam Aesthetics
-              </span>
-              <p className="text-base text-[#efeee9] font-light italic">
-                &ldquo;Photography allows me to preserve moments that might otherwise disappear into the ordinary passage of time.&rdquo;
-              </p>
+          <Reveal delay={200}>
+            <div className="p-8 bg-[#111111] border-l-2 border-[#efeee9]/60 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:border-[#efeee9] transition-colors">
+              <div className="space-y-1">
+                <span className="text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/50">
+                  Visual Philosophy &bull; Digicam Aesthetics
+                </span>
+                <p className="text-base text-[#efeee9] font-light italic font-serif">
+                  &ldquo;Photography allows me to preserve moments that might otherwise disappear into the ordinary passage of time.&rdquo;
+                </p>
+              </div>
+              <div className="text-xs uppercase tracking-widest text-[#efeee9]/60 shrink-0 font-mono">
+                5 Verified Primary Frames
+              </div>
             </div>
-            <div className="text-xs uppercase tracking-widest text-[#efeee9]/60 shrink-0">
-              5 Verified Primary Frames
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -835,90 +1228,101 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header */}
-          <div className="border-b border-[#efeee9]/20 pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div>
-              <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-                04 / Recognition &amp; Leadership
-              </span>
-              <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-                ACHIEVEMENTS &amp; MILESTONES
-              </h2>
-            </div>
-            <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
-              Foundational moments shaping my communication, leadership, and public engagement.
-            </p>
+          {/* Section Header with Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                  <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
+                    04 / Recognition &amp; Leadership
+                  </span>
+                  <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                    ACHIEVEMENTS &amp; MILESTONES
+                  </h2>
+                </div>
+                <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
+                  Foundational moments shaping my communication, leadership, and public engagement.
+                </p>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
-          {/* Milestones Cards */}
+          {/* Milestones Cards with Staggered Viewport Reveals */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Milestone 01 */}
-            <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 transition-colors duration-300 flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
-                    Milestone 01
-                  </span>
-                  <Award size={20} className="text-[#efeee9]/60" />
+            <Reveal delay={100}>
+              <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
+                      Milestone 01
+                    </span>
+                    <Award size={20} className="text-[#efeee9]/60" />
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
+                    An Interaction with the Hon’ble Finance Minister of India
+                  </h3>
+                  <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
+                    Smt. Nirmala Sitharaman
+                  </h4>
+                  <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
+                    Had the opportunity to meet and interact with the Hon’ble Finance Minister of India, Smt. Nirmala Sitharaman. This was a memorable milestone that strengthened my interest in communication, public engagement, leadership, and learning from distinguished personalities.
+                  </p>
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
-                  An Interaction with the Hon’ble Finance Minister of India
-                </h3>
-                <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
-                  Smt. Nirmala Sitharaman
-                </h4>
-                <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
-                  Had the opportunity to meet and interact with the Hon’ble Finance Minister of India, Smt. Nirmala Sitharaman. This was a memorable milestone that strengthened my interest in communication, public engagement, leadership, and learning from distinguished personalities.
-                </p>
-              </div>
 
-              <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Leadership</span>
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Engagement</span>
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">National Dialogue</span>
+                <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Leadership</span>
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Engagement</span>
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">National Dialogue</span>
+                </div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Milestone 02 */}
-            <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 transition-colors duration-300 flex flex-col justify-between space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
-                    Milestone 02
-                  </span>
-                  <Award size={20} className="text-[#efeee9]/60" />
+            <Reveal delay={200}>
+              <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
+                      Milestone 02
+                    </span>
+                    <Award size={20} className="text-[#efeee9]/60" />
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
+                    Second Prize &mdash; CBSE Storytelling Competition
+                  </h3>
+                  <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
+                    Creative Narration &amp; Expression
+                  </h4>
+                  <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
+                    Received Second Prize in a CBSE Storytelling Competition, recognising my interest in storytelling, creative expression, and effective communication. This achievement reflects my enthusiasm for presenting ideas, engaging an audience, and expressing narratives with confidence.
+                  </p>
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
-                  Second Prize &mdash; CBSE Storytelling Competition
-                </h3>
-                <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
-                  Creative Narration &amp; Expression
-                </h4>
-                <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
-                  Received Second Prize in a CBSE Storytelling Competition, recognising my interest in storytelling, creative expression, and effective communication. This achievement reflects my enthusiasm for presenting ideas, engaging an audience, and expressing narratives with confidence.
-                </p>
-              </div>
 
-              <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Storytelling</span>
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Speaking</span>
-                <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">CBSE Honors</span>
+                <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Storytelling</span>
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Speaking</span>
+                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">CBSE Honors</span>
+                </div>
               </div>
-            </div>
+            </Reveal>
           </div>
 
           {/* Reflection: What These Experiences Mean to Me */}
-          <div className="p-8 sm:p-12 bg-[#121212] border border-[#efeee9]/20 space-y-4">
-            <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50 block">
-              Reflections &bull; Impact
-            </span>
-            <h4 className="text-xl sm:text-2xl font-normal text-[#efeee9]">
-              What These Experiences Mean to Me
-            </h4>
-            <p className="text-sm sm:text-base text-[#efeee9]/85 font-light leading-relaxed">
-              These milestones represent two important aspects of my journey: the confidence to express myself and the curiosity to learn from others. They continue to inspire me to explore public speaking, develop my communication skills, and pursue opportunities that challenge me to grow personally and professionally.
-            </p>
-          </div>
+          <Reveal delay={250}>
+            <div className="p-8 sm:p-12 bg-[#121212] border border-[#efeee9]/20 space-y-4 hover:border-[#efeee9]/40 transition-colors">
+              <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50 block">
+                Reflections &bull; Impact
+              </span>
+              <h4 className="text-xl sm:text-2xl font-normal text-[#efeee9]">
+                What These Experiences Mean to Me
+              </h4>
+              <p className="text-sm sm:text-base text-[#efeee9]/85 font-light leading-relaxed">
+                These milestones represent two important aspects of my journey: the confidence to express myself and the curiosity to learn from others. They continue to inspire me to explore public speaking, develop my communication skills, and pursue opportunities that challenge me to grow personally and professionally.
+              </p>
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -930,19 +1334,24 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header */}
-          <div className="border-b border-[#efeee9]/20 pb-8">
-            <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-              05 / Perspective &amp; Vision
-            </span>
-            <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-              BEYOND MY HOBBIES &amp; PHILOSOPHY
-            </h2>
+          {/* Section Header with Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="pb-8">
+                <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
+                  05 / Perspective &amp; Vision
+                </span>
+                <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                  BEYOND MY HOBBIES &amp; PHILOSOPHY
+                </h2>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
             {/* Left Column: Beyond My Hobbies */}
-            <div className="lg:col-span-6 space-y-6">
+            <Reveal delay={100} className="lg:col-span-6 space-y-6">
               <h3 className="text-2xl font-light tracking-tight text-[#efeee9]">
                 Beyond My Hobbies
               </h3>
@@ -952,28 +1361,30 @@ export default function App() {
               <p className="text-base text-[#efeee9]/85 font-light leading-relaxed">
                 I value opportunities that allow me to learn, participate, collaborate, explore new experiences, and challenge myself. Whether I am working on a college project, preparing a presentation, documenting an experience, or experimenting with a new creative idea, I see every experience as an opportunity to develop a new skill or perspective.
               </p>
-            </div>
+            </Reveal>
 
             {/* Right Column: Core Philosophy Statement */}
-            <div className="lg:col-span-6 p-8 sm:p-10 bg-[#141414] border border-[#efeee9]/20 space-y-6 shadow-xl">
-              <h3 className="text-2xl font-light tracking-tight text-[#efeee9]">
-                My Core Philosophy
-              </h3>
-              <blockquote className="space-y-4 text-base sm:text-lg text-[#efeee9]/90 font-light italic leading-relaxed">
-                <p>
-                  &ldquo;I believe that a person can have many interests without needing to fit into a single category. I want to keep exploring different creative outlets, learning new things, documenting experiences, and discovering new dimensions of myself.
-                </p>
-                <p>
-                  I see this portfolio not simply as a collection of hobbies, but as a record of curiosity, experimentation, personal growth, and ambition. Every photograph, page, creative experiment, speech, and memory represents a small part of a much larger journey.
-                </p>
-                <p className="font-normal not-italic text-[#efeee9] border-t border-[#efeee9]/15 pt-4">
-                  I am still learning, still exploring, and still discovering what I can create. This is my archive &mdash; a reflection of who I am, what inspires me, and who I am becoming.&rdquo;
-                </p>
-              </blockquote>
-              <div className="text-xs uppercase tracking-widest text-[#efeee9]/50 font-mono">
-                &mdash; R Alice Mystica &bull; BBA Creative Archive
+            <Reveal delay={250} className="lg:col-span-6">
+              <div className="p-8 sm:p-10 bg-[#141414] border border-[#efeee9]/20 hover:border-[#efeee9]/50 space-y-6 shadow-xl transition-all duration-300">
+                <h3 className="text-2xl font-light tracking-tight text-[#efeee9]">
+                  My Core Philosophy
+                </h3>
+                <blockquote className="space-y-4 text-base sm:text-lg text-[#efeee9]/90 font-light italic leading-relaxed font-serif">
+                  <p>
+                    &ldquo;I believe that a person can have many interests without needing to fit into a single category. I want to keep exploring different creative outlets, learning new things, documenting experiences, and discovering new dimensions of myself.
+                  </p>
+                  <p>
+                    I see this portfolio not simply as a collection of hobbies, but as a record of curiosity, experimentation, personal growth, and ambition. Every photograph, page, creative experiment, speech, and memory represents a small part of a much larger journey.
+                  </p>
+                  <p className="font-normal not-italic text-[#efeee9] border-t border-[#efeee9]/15 pt-4 font-hn">
+                    I am still learning, still exploring, and still discovering what I can create. This is my archive &mdash; a reflection of who I am, what inspires me, and who I am becoming.&rdquo;
+                  </p>
+                </blockquote>
+                <div className="text-xs uppercase tracking-widest text-[#efeee9]/50 font-mono">
+                  &mdash; R Alice Mystica &bull; BBA Creative Archive
+                </div>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -986,116 +1397,123 @@ export default function App() {
         className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-4xl mx-auto space-y-12">
-          {/* Section Header */}
-          <div className="text-center space-y-4 border-b border-[#efeee9]/20 pb-8">
-            <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block font-mono">
-              06 / Inquiry &amp; Dialogue
-            </span>
-            <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-              START A CONVERSATION
-            </h2>
-            <p className="text-[#efeee9]/70 text-sm sm:text-base font-light max-w-xl mx-auto">
-              Whether discussing business collaborations, creative projects, public speaking, or simply saying hello.
-            </p>
+          {/* Section Header with Reveal Rule */}
+          <div className="space-y-4">
+            <Reveal delay={0}>
+              <div className="text-center space-y-4 pb-8">
+                <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block font-mono">
+                  06 / Inquiry &amp; Dialogue
+                </span>
+                <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
+                  START A CONVERSATION
+                </h2>
+                <p className="text-[#efeee9]/70 text-sm sm:text-base font-light max-w-xl mx-auto">
+                  Whether discussing business collaborations, creative projects, public speaking, or simply saying hello.
+                </p>
+              </div>
+            </Reveal>
+            <RevealRule delay={150} />
           </div>
 
-          {/* Form or Confirmation */}
-          {messageSubmitted ? (
-            <div className="p-12 bg-black/60 border border-[#efeee9]/30 text-center space-y-4 animate-fade-in">
-              <div className="w-12 h-12 mx-auto rounded-full border border-[#efeee9]/40 flex items-center justify-center text-[#efeee9]">
-                <Check size={24} />
-              </div>
-              <h3 className="text-2xl font-light text-[#efeee9]">Note Received into the Archive</h3>
-              <p className="text-sm text-[#efeee9]/70 font-light max-w-md mx-auto">
-                Thank you for reaching out. Your note has been safely logged. I will respond to your message promptly.
-              </p>
-              <button
-                onClick={() => {
-                  setMessageSubmitted(false)
-                  setMessageForm({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
-                }}
-                className="mt-6 text-xs uppercase tracking-widest text-[#efeee9] underline underline-offset-4 hover:opacity-70 transition-opacity cursor-pointer"
-              >
-                Send Another Note &rarr;
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleFormSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="contact-name" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
-                    Your Name *
-                  </label>
-                  <input
-                    id="contact-name"
-                    name="name"
-                    type="text"
-                    required
-                    value={messageForm.name}
-                    onChange={(e) => setMessageForm({ ...messageForm, name: e.target.value })}
-                    placeholder="e.g. Jane Doe"
-                    className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm placeholder:text-[#efeee9]/30 transition-colors"
-                  />
+          {/* Form or Confirmation wrapped in Reveal */}
+          <Reveal delay={150}>
+            {messageSubmitted ? (
+              <div className="p-12 bg-black/60 border border-[#efeee9]/30 text-center space-y-4 animate-fade-in shadow-2xl">
+                <div className="w-12 h-12 mx-auto rounded-full border border-[#efeee9]/40 flex items-center justify-center text-[#efeee9]">
+                  <Check size={24} />
                 </div>
-                <div>
-                  <label htmlFor="contact-email" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
-                    Email Address *
-                  </label>
-                  <input
-                    id="contact-email"
-                    name="email"
-                    type="email"
-                    required
-                    value={messageForm.email}
-                    onChange={(e) => setMessageForm({ ...messageForm, email: e.target.value })}
-                    placeholder="name@example.com"
-                    className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm placeholder:text-[#efeee9]/30 transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label htmlFor="contact-topic" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
-                  Topic of Dialogue
-                </label>
-                <select
-                  id="contact-topic"
-                  name="subject"
-                  value={messageForm.subject}
-                  onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
-                  className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm transition-colors cursor-pointer"
+                <h3 className="text-2xl font-light text-[#efeee9]">Note Received into the Archive</h3>
+                <p className="text-sm text-[#efeee9]/70 font-light max-w-md mx-auto">
+                  Thank you for reaching out. Your note has been safely logged. I will respond to your message promptly.
+                </p>
+                <button
+                  onClick={() => {
+                    setMessageSubmitted(false)
+                    setMessageForm({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
+                  }}
+                  className="mt-6 text-xs uppercase tracking-widest text-[#efeee9] underline underline-offset-4 hover:opacity-70 transition-opacity cursor-pointer font-mono"
                 >
-                  <option value="Creative Collaboration" className="bg-[#111111] text-[#efeee9]">Creative Collaboration</option>
-                  <option value="Academic & Business Project" className="bg-[#111111] text-[#efeee9]">Academic &amp; Business Project</option>
-                  <option value="Public Speaking & Events" className="bg-[#111111] text-[#efeee9]">Public Speaking &amp; Events</option>
-                  <option value="General Note" className="bg-[#111111] text-[#efeee9]">General Note / Hello</option>
-                </select>
+                  Send Another Note &rarr;
+                </button>
               </div>
+            ) : (
+              <form onSubmit={handleFormSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="contact-name" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                      Your Name *
+                    </label>
+                    <input
+                      id="contact-name"
+                      name="name"
+                      type="text"
+                      required
+                      value={messageForm.name}
+                      onChange={(e) => setMessageForm({ ...messageForm, name: e.target.value })}
+                      placeholder="e.g. Jane Doe"
+                      className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:ring-1 focus:ring-[#efeee9]/40 focus:outline-none text-sm placeholder:text-[#efeee9]/30 transition-all duration-300"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="contact-email" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                      Email Address *
+                    </label>
+                    <input
+                      id="contact-email"
+                      name="email"
+                      type="email"
+                      required
+                      value={messageForm.email}
+                      onChange={(e) => setMessageForm({ ...messageForm, email: e.target.value })}
+                      placeholder="name@example.com"
+                      className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:ring-1 focus:ring-[#efeee9]/40 focus:outline-none text-sm placeholder:text-[#efeee9]/30 transition-all duration-300"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label htmlFor="contact-message" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
-                  Message *
-                </label>
-                <textarea
-                  id="contact-message"
-                  name="message"
-                  rows={5}
-                  required
-                  value={messageForm.message}
-                  onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
-                  placeholder="Write your note, idea, or collaboration proposal here..."
-                  className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm placeholder:text-[#efeee9]/30 resize-none transition-colors"
-                />
-              </div>
+                <div>
+                  <label htmlFor="contact-topic" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                    Topic of Dialogue
+                  </label>
+                  <select
+                    id="contact-topic"
+                    name="subject"
+                    value={messageForm.subject}
+                    onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
+                    className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm transition-colors cursor-pointer"
+                  >
+                    <option value="Creative Collaboration" className="bg-[#111111] text-[#efeee9]">Creative Collaboration</option>
+                    <option value="Academic & Business Project" className="bg-[#111111] text-[#efeee9]">Academic &amp; Business Project</option>
+                    <option value="Public Speaking & Events" className="bg-[#111111] text-[#efeee9]">Public Speaking &amp; Events</option>
+                    <option value="General Note" className="bg-[#111111] text-[#efeee9]">General Note / Hello</option>
+                  </select>
+                </div>
 
-              <button
-                type="submit"
-                className="w-full bg-[#efeee9] text-black py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[#efeee9]/90 transition-all duration-300 shadow-xl cursor-pointer"
-              >
-                Dispatch Note Into Archive &rarr;
-              </button>
-            </form>
-          )}
+                <div>
+                  <label htmlFor="contact-message" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                    Message *
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    rows={5}
+                    required
+                    value={messageForm.message}
+                    onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
+                    placeholder="Write your note, idea, or collaboration proposal here..."
+                    className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:ring-1 focus:ring-[#efeee9]/40 focus:outline-none text-sm placeholder:text-[#efeee9]/30 resize-none transition-all duration-300"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-[#efeee9] text-black py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[#efeee9]/90 hover:tracking-[0.3em] transition-all duration-300 shadow-xl cursor-pointer"
+                >
+                  Dispatch Note Into Archive &rarr;
+                </button>
+              </form>
+            )}
+          </Reveal>
         </div>
       </section>
 
@@ -1142,7 +1560,7 @@ export default function App() {
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-light text-[#efeee9]/50">
             <p>&copy; {new Date().getFullYear()} R Alice Mystica. All rights reserved.</p>
-            <p className="italic text-[#efeee9]/40">
+            <p className="italic text-[#efeee9]/40 font-serif">
               Curated with intentionality, minimalism &amp; grace.
             </p>
           </div>
@@ -1151,6 +1569,7 @@ export default function App() {
 
       {/* =========================================================================
           LIGHTBOX MODAL FOR ARCHIVAL PHOTOGRAPHY
+          Enhanced with thumbnail strip, keyboard navigation, and counter
           ========================================================================= */}
       {lightboxPhoto && (
         <div
@@ -1161,7 +1580,7 @@ export default function App() {
           onClick={closeLightbox}
         >
           <div
-            className="relative max-w-4xl w-full max-h-[92vh] bg-[#111111] border border-[#efeee9]/20 p-6 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            className="relative max-w-4xl w-full max-h-[94vh] bg-[#111111] border border-[#efeee9]/20 p-6 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Bar with Counter and Close Button */}
@@ -1179,11 +1598,11 @@ export default function App() {
             </div>
 
             {/* Modal Image with Navigation Arrows */}
-            <div className="relative w-full max-h-[62vh] overflow-hidden bg-black flex items-center justify-center my-4 group">
+            <div className="relative w-full max-h-[58vh] overflow-hidden bg-black flex items-center justify-center my-4 group">
               <img
                 src={lightboxPhoto.image}
                 alt={lightboxPhoto.title}
-                className="max-h-[62vh] max-w-full object-contain"
+                className="max-h-[58vh] max-w-full object-contain"
               />
 
               {/* Prev Button */}
@@ -1193,7 +1612,7 @@ export default function App() {
                   prevLightbox()
                 }}
                 aria-label="Previous photo"
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
               >
                 <ChevronLeft size={22} strokeWidth={1.5} />
               </button>
@@ -1205,10 +1624,28 @@ export default function App() {
                   nextLightbox()
                 }}
                 aria-label="Next photo"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
               >
                 <ChevronRight size={22} strokeWidth={1.5} />
               </button>
+            </div>
+
+            {/* Thumbnail Navigation Strip */}
+            <div className="flex items-center justify-center gap-2 pb-4 pt-1 overflow-x-auto">
+              {ARCHIVAL_GALLERY.map((thumb, idx) => (
+                <button
+                  key={thumb.id}
+                  onClick={() => setLightboxIndex(idx)}
+                  className={`h-12 w-16 shrink-0 overflow-hidden border transition-all cursor-pointer ${
+                    lightboxIndex === idx
+                      ? 'border-[#efeee9] opacity-100 scale-105 shadow-md'
+                      : 'border-[#efeee9]/20 opacity-50 hover:opacity-85'
+                  }`}
+                  aria-label={`Switch to frame 0${idx + 1}`}
+                >
+                  <img src={thumb.image} alt={thumb.title} className="h-full w-full object-cover" />
+                </button>
+              ))}
             </div>
 
             {/* Metadata Footer */}
