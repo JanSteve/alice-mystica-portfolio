@@ -23,7 +23,11 @@ import {
   Copy,
   Clock,
   Battery,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ZoomIn,
+  ZoomOut,
+  Info,
+  ChevronDown
 } from 'lucide-react'
 
 // =========================================================================
@@ -128,6 +132,12 @@ interface ArchivalPhoto {
   objectPosition: string
   spanClass?: string
   digicamStamp: string
+  specs: {
+    medium: string
+    iso: string
+    colorProfile: string
+    archiveRef: string
+  }
 }
 
 const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
@@ -143,7 +153,13 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     aspectRatio: "aspect-[2/1] sm:aspect-[21/9]",
     objectPosition: "object-center",
     spanClass: "md:col-span-2 lg:col-span-2",
-    digicamStamp: "'25 10 15 21:40"
+    digicamStamp: "'25 10 15 21:40",
+    specs: {
+      medium: "35mm Portrait Study • Red Illumination",
+      iso: "ISO 400 • f/1.8 • 1/125s",
+      colorProfile: "Deep Crimson & Noir Shadow",
+      archiveRef: "ALICE-ARC-01-RED",
+    },
   },
   {
     id: "smile-candid",
@@ -156,7 +172,13 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     image: ASSETS.smilePortrait,
     aspectRatio: "aspect-[4/5]",
     objectPosition: "object-top",
-    digicamStamp: "'25 04 12 18:24"
+    digicamStamp: "'25 04 12 18:24",
+    specs: {
+      medium: "Natural Daylight Portrait • Direct Sun",
+      iso: "ISO 200 • f/2.4 • 1/250s",
+      colorProfile: "Ivory Warmth & Radiant Glow",
+      archiveRef: "ALICE-ARC-02-SMILE",
+    },
   },
   {
     id: "childhood-2020",
@@ -169,7 +191,13 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     image: ASSETS.childhood2020,
     aspectRatio: "aspect-[4/3]",
     objectPosition: "object-top",
-    digicamStamp: "'20 11 27 15:56"
+    digicamStamp: "'20 11 27 15:56",
+    specs: {
+      medium: "Vintage CCD Sensor • Amber Quartz",
+      iso: "ISO 100 • 35mm Equiv • Flash",
+      colorProfile: "Warm Vintage Grain & Amber Stamp",
+      archiveRef: "ALICE-ARC-03-2020",
+    },
   },
   {
     id: "school-days",
@@ -182,7 +210,13 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     image: ASSETS.schoolUniform,
     aspectRatio: "aspect-[4/3]",
     objectPosition: "object-center",
-    digicamStamp: "'14 06 18 08:30"
+    digicamStamp: "'14 06 18 08:30",
+    specs: {
+      medium: "Primary School Archival Print Scan",
+      iso: "ISO 100 • Daylight Exterior",
+      colorProfile: "Saturated Navy, Tartan & Morning Light",
+      archiveRef: "ALICE-ARC-04-SCHOOL",
+    },
   },
   {
     id: "childhood-playful",
@@ -195,8 +229,14 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     image: ASSETS.childhoodPlayful,
     aspectRatio: "aspect-[4/5]",
     objectPosition: "object-top",
-    digicamStamp: "'16 08 24 16:15"
-  }
+    digicamStamp: "'16 08 24 16:15",
+    specs: {
+      medium: "Archival Candid Snapshot • Indoor Ambient",
+      iso: "ISO 200 • f/2.8 • 1/60s",
+      colorProfile: "Vivid Scarlet & Candid Memory Grain",
+      archiveRef: "ALICE-ARC-05-PLAYFUL",
+    },
+  },
 ]
 
 interface SectionItem {
@@ -223,45 +263,74 @@ const SECTIONS: SectionItem[] = [
 
 class SoundscapeController {
   private ctx: AudioContext | null = null
-  private gainNode: GainNode | null = null
+  private ambientGain: GainNode | null = null
   private oscillators: OscillatorNode[] = []
   private filter: BiquadFilterNode | null = null
+  private lfo: OscillatorNode | null = null
+  private lfoGain: GainNode | null = null
+  private stopTimer: ReturnType<typeof setTimeout> | null = null
   public isPlaying = false
 
-  public start(): boolean {
-    if (this.isPlaying) return true
+  private getAudioContext(): AudioContext | null {
+    if (typeof window === 'undefined') return null
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      if (!AudioCtx) return false
-
-      this.ctx = new AudioCtx()
+      if (!this.ctx || this.ctx.state === 'closed') {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+        if (!AudioCtx) return null
+        this.ctx = new AudioCtx()
+      }
       if (this.ctx.state === 'suspended') {
         this.ctx.resume()
       }
+      return this.ctx
+    } catch {
+      return null
+    }
+  }
 
-      const now = this.ctx.currentTime
+  public start(): boolean {
+    if (this.isPlaying) return true
+    const ctx = this.getAudioContext()
+    if (!ctx) return false
 
-      // Warm analog low-pass filter to create peaceful velvety backdrop
-      this.filter = this.ctx.createBiquadFilter()
+    if (this.stopTimer) {
+      clearTimeout(this.stopTimer)
+      this.stopTimer = null
+    }
+
+    try {
+      const now = ctx.currentTime
+
+      // Warm analog low-pass filter
+      this.filter = ctx.createBiquadFilter()
       this.filter.type = 'lowpass'
       this.filter.frequency.setValueAtTime(360, now)
 
-      // Master gain node with smooth fade-in
-      this.gainNode = this.ctx.createGain()
-      this.gainNode.gain.setValueAtTime(0.0001, now)
-      this.gainNode.gain.exponentialRampToValueAtTime(0.045, now + 1.8)
+      // Slow organic LFO modulating filter frequency for a breathing ambient texture
+      this.lfo = ctx.createOscillator()
+      this.lfoGain = ctx.createGain()
+      this.lfo.type = 'sine'
+      this.lfo.frequency.setValueAtTime(0.12, now) // ~8.3-second breath cycle
+      this.lfoGain.gain.setValueAtTime(50, now) // subtle +/- 50Hz warmth
+      this.lfo.connect(this.lfoGain)
+      this.lfoGain.connect(this.filter.frequency)
+      this.lfo.start(now)
 
-      // Pentatonic warm chord: D3 (146.83Hz), A3 (220.0Hz), D4 (293.66Hz), F#4 (369.99Hz)
+      // Ambient gain node with gentle fade-in
+      this.ambientGain = ctx.createGain()
+      this.ambientGain.gain.setValueAtTime(0.0001, now)
+      this.ambientGain.gain.exponentialRampToValueAtTime(0.042, now + 1.6)
+
+      // Pentatonic warm open chord: D3 (146.83Hz), A3 (220.0Hz), D4 (293.66Hz), F#4 (369.99Hz)
       const frequencies = [146.83, 220.00, 293.66, 369.99]
       this.oscillators = frequencies.map((freq, idx) => {
-        const osc = this.ctx!.createOscillator()
+        const osc = ctx.createOscillator()
         osc.type = idx % 2 === 0 ? 'sine' : 'triangle'
         osc.frequency.setValueAtTime(freq, now)
-        // Subtle micro-chorus detuning
-        osc.detune.setValueAtTime((idx - 1.5) * 5, now)
+        osc.detune.setValueAtTime((idx - 1.5) * 4.5, now)
 
-        const oscGain = this.ctx!.createGain()
-        oscGain.gain.setValueAtTime(0.25, now)
+        const oscGain = ctx.createGain()
+        oscGain.gain.setValueAtTime(0.24, now)
 
         osc.connect(oscGain)
         oscGain.connect(this.filter!)
@@ -269,8 +338,8 @@ class SoundscapeController {
         return osc
       })
 
-      this.filter.connect(this.gainNode)
-      this.gainNode.connect(this.ctx.destination)
+      this.filter.connect(this.ambientGain)
+      this.ambientGain.connect(ctx.destination)
       this.isPlaying = true
       return true
     } catch {
@@ -280,27 +349,41 @@ class SoundscapeController {
   }
 
   public stop(): boolean {
-    if (!this.gainNode || !this.ctx) {
+    if (!this.isPlaying || !this.ambientGain || !this.ctx) {
       this.isPlaying = false
       return false
     }
     try {
       const now = this.ctx.currentTime
-      this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now)
-      this.gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.0)
-      setTimeout(() => {
+      this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, now)
+      this.ambientGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8)
+
+      this.isPlaying = false
+
+      this.stopTimer = setTimeout(() => {
         this.oscillators.forEach(osc => {
-          try { osc.stop() } catch { /* ignore */ }
+          try {
+            osc.stop()
+            osc.disconnect()
+          } catch {}
         })
         this.oscillators = []
-        if (this.ctx) {
-          try { this.ctx.close() } catch { /* ignore */ }
-          this.ctx = null
+        if (this.lfo) {
+          try {
+            this.lfo.stop()
+            this.lfo.disconnect()
+          } catch {}
+          this.lfo = null
         }
-        this.isPlaying = false
-      }, 1050)
-      this.isPlaying = false
-      return false
+        if (this.filter) {
+          try { this.filter.disconnect() } catch {}
+          this.filter = null
+        }
+        this.ambientGain = null
+        this.stopTimer = null
+      }, 850)
+
+      return true
     } catch {
       this.isPlaying = false
       return false
@@ -308,27 +391,28 @@ class SoundscapeController {
   }
 
   public playTick() {
+    const ctx = this.getAudioContext()
+    if (!ctx) return
     try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
+      const now = ctx.currentTime
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(800, ctx.currentTime)
-      osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.035)
-      gain.gain.setValueAtTime(0.025, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.035)
+      osc.frequency.setValueAtTime(820, now)
+      osc.frequency.exponentialRampToValueAtTime(340, now + 0.032)
+      gain.gain.setValueAtTime(0.02, now)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.032)
       osc.connect(gain)
       gain.connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + 0.035)
+      osc.start(now)
+      osc.stop(now + 0.035)
       setTimeout(() => {
-        try { ctx.close() } catch { /* ignore */ }
-      }, 60)
-    } catch {
-      // Audio not permitted
-    }
+        try {
+          osc.disconnect()
+          gain.disconnect()
+        } catch {}
+      }, 50)
+    } catch {}
   }
 }
 
@@ -355,7 +439,13 @@ function LiveTimeClock({ compact = false }: { compact?: boolean }) {
         })
         setTimeStr(formatter.format(now))
       } catch {
-        setTimeStr('12:00:00')
+        const d = new Date()
+        const utc = d.getTime() + d.getTimezoneOffset() * 60000
+        const ist = new Date(utc + 3600000 * 5.5)
+        const hh = String(ist.getHours()).padStart(2, '0')
+        const mm = String(ist.getMinutes()).padStart(2, '0')
+        const ss = String(ist.getSeconds()).padStart(2, '0')
+        setTimeStr(`${hh}:${mm}:${ss}`)
       }
     }
     updateTime()
@@ -369,7 +459,7 @@ function LiveTimeClock({ compact = false }: { compact?: boolean }) {
         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
       </span>
-      <span>IST &bull; {timeStr || '--:--:--'} (UTC+5:30)</span>
+      <span>IST &bull; {timeStr || '--:--:--'}{!compact && ' (UTC+5:30)'}</span>
     </div>
   )
 }
@@ -448,34 +538,116 @@ function MobileBottomBar({
   onScrollToTop: () => void
   scrollProgress: number
 }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
   const currentMeta = sections.find((s) => s.id === activeSection) || sections[0]
   const currentIndex = sections.findIndex((s) => s.id === activeSection)
   const nextSection = sections[(currentIndex + 1) % sections.length]
 
   return (
-    <aside
-      aria-label="Mobile quick actions"
-      className="fixed bottom-4 inset-x-3 z-40 sm:hidden pointer-events-auto"
-    >
-      <div className="bg-[#121212]/92 backdrop-blur-xl border border-[#efeee9]/25 rounded-full px-3.5 py-2 shadow-2xl flex items-center justify-between gap-2">
-        {/* Next Chapter Advance Pill */}
-        <button
-          onClick={() => onNavigate(nextSection.id)}
-          aria-label={`Advance to next chapter: ${nextSection.title}`}
-          className="flex items-center gap-2 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity cursor-pointer min-h-[44px] px-2 active:scale-95"
+    <>
+      {/* Mobile Chapter Switcher Bottom Sheet Modal */}
+      {sheetOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md sm:hidden animate-fade-in flex flex-col justify-end"
+          onClick={() => setSheetOpen(false)}
         >
-          <span className="w-2 h-2 rounded-full bg-[#efeee9] animate-pulse shrink-0" />
-          <span className="truncate max-w-[125px]">
-            {currentMeta.number}. {currentMeta.navLabel}
-          </span>
-          <ArrowDown size={11} className="opacity-60 -rotate-90 shrink-0" />
-        </button>
+          <div
+            className="bg-[#121212] border-t border-[#efeee9]/20 rounded-t-2xl p-5 pb-8 space-y-4 max-h-[75vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Grab handle */}
+            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto" />
 
-        <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center justify-between pb-3 border-b border-[#efeee9]/15">
+              <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-[#efeee9]/60">
+                Archive Chapters
+              </span>
+              <button
+                onClick={() => setSheetOpen(false)}
+                className="p-1.5 text-[#efeee9]/60 hover:text-[#efeee9] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+                aria-label="Close chapter menu"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2">
+              {sections.map((sec) => {
+                const isActive = activeSection === sec.id
+                return (
+                  <button
+                    key={sec.id}
+                    onClick={() => {
+                      onNavigate(sec.id)
+                      setSheetOpen(false)
+                    }}
+                    className={`w-full px-4 py-3 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
+                      isActive
+                        ? 'bg-[#efeee9] text-black border-[#efeee9] font-medium shadow-md'
+                        : 'bg-white/5 border-[#efeee9]/10 text-[#efeee9]/80 hover:bg-white/10 hover:text-[#efeee9]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-xs opacity-60">{sec.number}</span>
+                      <span className="text-sm">{sec.title}</span>
+                    </div>
+                    {isActive ? (
+                      <span className="text-[10px] font-mono uppercase tracking-widest bg-black text-[#efeee9] px-2 py-0.5 rounded">
+                        Active
+                      </span>
+                    ) : (
+                      <span className="text-xs font-mono opacity-40">{sec.navLabel}</span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Bottom Pill with Safe-Area Insets */}
+      <aside
+        aria-label="Mobile quick actions"
+        className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] inset-x-3 z-40 sm:hidden pointer-events-auto"
+      >
+        <div className="bg-[#121212]/95 backdrop-blur-xl border border-[#efeee9]/25 rounded-full px-3 py-2 shadow-2xl flex items-center justify-between gap-1.5">
+          {/* Chapter Quick Switcher Button */}
+          <button
+            onClick={() => {
+              setSheetOpen(!sheetOpen)
+              soundEngine.playTick()
+            }}
+            aria-label="Open chapter navigation switcher"
+            className="flex items-center gap-2 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity cursor-pointer min-h-[44px] px-2.5 bg-white/5 border border-[#efeee9]/15 rounded-full active:scale-95"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="truncate max-w-[110px]">
+              {currentMeta.number}. {currentMeta.navLabel}
+            </span>
+            <ChevronDown size={12} className="opacity-60 shrink-0" />
+          </button>
+
+          {/* Advance to Next Chapter Button */}
+          <button
+            onClick={() => {
+              onNavigate(nextSection.id)
+              soundEngine.playTick()
+            }}
+            aria-label={`Advance to next chapter: ${nextSection.title}`}
+            title={`Next: ${nextSection.title}`}
+            className="p-2 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+          >
+            <ArrowDown size={14} className="-rotate-90" />
+          </button>
+
           {/* Quick Inquiry Jump */}
           <button
-            onClick={() => onNavigate('contact')}
-            className={`px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all cursor-pointer min-h-[38px] flex items-center justify-center active:scale-95 ${
+            onClick={() => {
+              onNavigate('contact')
+              soundEngine.playTick()
+            }}
+            className={`px-3 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all cursor-pointer min-h-[44px] flex items-center justify-center active:scale-95 ${
               activeSection === 'contact'
                 ? 'bg-[#efeee9] text-black font-medium'
                 : 'bg-white/10 text-[#efeee9] hover:bg-[#efeee9] hover:text-black border border-[#efeee9]/20'
@@ -486,16 +658,19 @@ function MobileBottomBar({
 
           {/* Top Progress Ring & Percentage */}
           <button
-            onClick={onScrollToTop}
+            onClick={() => {
+              onScrollToTop()
+              soundEngine.playTick()
+            }}
             aria-label="Scroll back to top"
-            className="px-2.5 py-1.5 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all flex items-center gap-1 min-h-[38px]"
+            className="px-2.5 py-2 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all flex items-center gap-1 min-h-[44px]"
           >
             <ArrowUp size={12} />
             <span className="text-[10px] font-mono">{Math.round(scrollProgress)}%</span>
           </button>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   )
 }
 
@@ -849,7 +1024,7 @@ interface ParallaxPhotoCardProps {
 
 function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhotoCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [offsetY, setOffsetY] = useState(0)
+  const imageWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -857,7 +1032,8 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhot
     }
 
     const el = containerRef.current
-    if (!el) return
+    const wrapper = imageWrapperRef.current
+    if (!el || !wrapper) return
 
     let ticking = false
 
@@ -869,7 +1045,7 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhot
         const progress = (vh / 2 - (rect.top + rect.height / 2)) / (vh / 2)
         // Gentle parallax translation between -24px and +24px
         const y = Math.max(-24, Math.min(24, progress * 20))
-        setOffsetY(y)
+        wrapper.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`
       }
       ticking = false
     }
@@ -900,11 +1076,8 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhot
       {/* Image Container with Scroll-Driven Parallax Translation */}
       <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
         <div
+          ref={imageWrapperRef}
           className="absolute -top-[12%] -bottom-[12%] inset-x-0 w-full h-[124%] will-change-transform"
-          style={{
-            transform: `translate3d(0, ${offsetY}px, 0)`,
-            transition: 'transform 0.12s cubic-bezier(0.25, 1, 0.5, 1)',
-          }}
         >
           <img
             src={item.image}
@@ -990,7 +1163,11 @@ export default function App() {
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
   const [touchStartY, setTouchStartY] = useState<number | null>(null)
   const [touchDeltaX, setTouchDeltaX] = useState<number>(0)
+  const [touchDeltaY, setTouchDeltaY] = useState<number>(0)
   const [isSwiping, setIsSwiping] = useState(false)
+  const [zoomLevel, setZoomLevel] = useState<1 | 2>(1)
+  const [showPhotoSpecs, setShowPhotoSpecs] = useState(false)
+  const lastTapRef = useRef<number>(0)
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg)
@@ -1022,10 +1199,35 @@ export default function App() {
     }
   }
 
+  const shareArchive = async () => {
+    soundEngine.playTick()
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Alice Mystica — The Creative Archive',
+          text: 'A collection of creativity, expression, memories, and becoming by R Alice Mystica.',
+          url: window.location.href,
+        })
+        triggerToast('Shared successfully')
+        return
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') {
+          copyArchiveLink()
+        }
+      }
+    } else {
+      copyArchiveLink()
+    }
+  }
+
   const lightboxPhoto = lightboxIndex !== null ? ARCHIVAL_GALLERY[lightboxIndex] : null
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index)
+    setZoomLevel(1)
+    setShowPhotoSpecs(false)
+    setTouchDeltaX(0)
+    setTouchDeltaY(0)
     soundEngine.playTick()
   }
 
@@ -1034,12 +1236,18 @@ export default function App() {
     setTouchStartX(null)
     setTouchStartY(null)
     setTouchDeltaX(0)
+    setTouchDeltaY(0)
     setIsSwiping(false)
+    setZoomLevel(1)
+    setShowPhotoSpecs(false)
   }
 
   const nextLightbox = () => {
     if (lightboxIndex !== null) {
       setLightboxIndex((lightboxIndex + 1) % ARCHIVAL_GALLERY.length)
+      setTouchDeltaX(0)
+      setTouchDeltaY(0)
+      setZoomLevel(1)
       soundEngine.playTick()
     }
   }
@@ -1047,8 +1255,31 @@ export default function App() {
   const prevLightbox = () => {
     if (lightboxIndex !== null) {
       setLightboxIndex((lightboxIndex - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length)
+      setTouchDeltaX(0)
+      setTouchDeltaY(0)
+      setZoomLevel(1)
       soundEngine.playTick()
     }
+  }
+
+  const toggleZoom = () => {
+    const nextZoom = zoomLevel === 1 ? 2 : 1
+    setZoomLevel(nextZoom)
+    soundEngine.playTick()
+    triggerToast(nextZoom === 2 ? 'Zoom 1.8x Active' : 'Zoom 1.0x Normal')
+  }
+
+  const togglePhotoSpecs = () => {
+    setShowPhotoSpecs((prev) => !prev)
+    soundEngine.playTick()
+  }
+
+  const handlePhotoDoubleTap = () => {
+    const now = Date.now()
+    if (now - lastTapRef.current < 300) {
+      toggleZoom()
+    }
+    lastTapRef.current = now
   }
 
   // Document Title
@@ -1121,21 +1352,23 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setLightboxIndex(null)
+        closeLightbox()
         setDrawerOpen(false)
       } else if (lightboxIndex !== null) {
         if (e.key === 'ArrowRight') {
-          setLightboxIndex((prev) => (prev !== null ? (prev + 1) % ARCHIVAL_GALLERY.length : null))
-          soundEngine.playTick()
+          nextLightbox()
         } else if (e.key === 'ArrowLeft') {
-          setLightboxIndex((prev) => (prev !== null ? (prev - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length : null))
-          soundEngine.playTick()
+          prevLightbox()
+        } else if (e.key.toLowerCase() === 'z') {
+          toggleZoom()
+        } else if (e.key.toLowerCase() === 'i') {
+          togglePhotoSpecs()
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [lightboxIndex])
+  }, [lightboxIndex, zoomLevel, showPhotoSpecs])
 
   // Initial load hash navigation
   useEffect(() => {
@@ -1277,8 +1510,8 @@ export default function App() {
 
           {/* Share Archive Button */}
           <button
-            onClick={copyArchiveLink}
-            aria-label="Copy archive portfolio link"
+            onClick={shareArchive}
+            aria-label="Share archive portfolio link"
             title="Share Archive"
             className="hidden sm:flex p-2 rounded-full border border-[#efeee9]/20 bg-[#141414]/90 text-[#efeee9]/70 hover:text-[#efeee9] hover:border-[#efeee9]/50 transition-all cursor-pointer min-h-[40px] min-w-[40px] items-center justify-center active:scale-95"
           >
@@ -1412,7 +1645,7 @@ export default function App() {
             {/* Quick Share Link button */}
             <button
               onClick={() => {
-                copyArchiveLink()
+                shareArchive()
                 setDrawerOpen(false)
               }}
               className="mt-6 w-full py-3 px-4 border border-[#efeee9]/20 bg-white/5 rounded flex items-center justify-center gap-2 text-xs font-mono uppercase tracking-wider text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px]"
@@ -1498,8 +1731,8 @@ export default function App() {
             </a>
 
             <button
-              onClick={copyArchiveLink}
-              title="Copy Archive Link"
+              onClick={shareArchive}
+              title="Share Archive Link"
               className="p-2.5 rounded-full border border-[#efeee9]/20 bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center text-[#efeee9]"
               aria-label="Share Archive Link"
             >
@@ -1650,19 +1883,24 @@ export default function App() {
 
           {/* Interactive Category Selector Tabs */}
           <Reveal delay={100}>
-            {/* Mobile: Horizontal Swipeable Pill Track */}
-            <div className="sm:hidden flex overflow-x-auto no-scrollbar gap-2 pb-2 snap-x snap-mandatory -mx-2 px-2">
+            {/* Mobile: Horizontal Swipeable Pill Track with Auto-Scroll Center */}
+            <div className="sm:hidden flex overflow-x-auto no-scrollbar gap-2 pb-2 snap-x snap-mandatory -mx-2 px-2 scroll-smooth">
               {CREATIVE_INTERESTS.map((item, index) => {
                 const IconComponent = item.icon
                 const isSelected = selectedInterest === index
                 return (
                   <button
+                    id={`interest-tab-${index}`}
                     key={item.number}
                     onClick={() => {
                       setSelectedInterest(index)
                       soundEngine.playTick()
+                      const el = document.getElementById(`interest-tab-${index}`)
+                      if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+                      }
                     }}
-                    className={`shrink-0 snap-start px-3.5 py-2.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer text-xs min-h-[44px] ${
+                    className={`shrink-0 snap-center px-3.5 py-2.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer text-xs min-h-[44px] ${
                       isSelected
                         ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-lg font-medium'
                         : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
@@ -1677,6 +1915,11 @@ export default function App() {
                   </button>
                 )
               })}
+            </div>
+            {/* Mobile Track Swipe Affordance */}
+            <div className="sm:hidden flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/45 pt-1.5 px-1 select-none">
+              <span>Discipline 0{selectedInterest + 1} / 08</span>
+              <span>&larr; Swipe disciplines &rarr;</span>
             </div>
 
             {/* Desktop / Tablet: 8-Column Grid */}
@@ -2266,31 +2509,77 @@ export default function App() {
           LIGHTBOX MODAL FOR ARCHIVAL PHOTOGRAPHY
           Enhanced with thumbnail strip, keyboard navigation, and counter
           ========================================================================= */}
+      {/* =========================================================================
+          LIGHTBOX MODAL FOR ARCHIVAL PHOTOGRAPHY
+          Enhanced with touch swipe gestures, real-time pull-to-dismiss,
+          double-tap zoom, archival specs panel, and in-viewer digicam toggle
+          ========================================================================= */}
       {lightboxPhoto && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label={lightboxPhoto.title}
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-10 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-8 animate-fade-in"
           onClick={closeLightbox}
         >
           <div
-            className="relative max-w-4xl w-full max-h-[94vh] bg-[#111111] border border-[#efeee9]/20 p-4 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            className="relative max-w-4xl w-full max-h-[96vh] bg-[#111111] border border-[#efeee9]/20 p-3.5 sm:p-7 flex flex-col justify-between shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Top Bar with Counter and Close Button */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-[#efeee9]/15">
-              <div className="flex items-center gap-3">
+            {/* Top Bar with Controls, Toggles, and Close Button */}
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#efeee9]/15">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                 <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9]/70">
-                  Frame {lightboxIndex !== null ? `0${lightboxIndex + 1} / 0${ARCHIVAL_GALLERY.length}` : ''} &bull; {lightboxPhoto.tag}
+                  Frame 0{lightboxIndex !== null ? lightboxIndex + 1 : 1} / 0{ARCHIVAL_GALLERY.length}
                 </span>
-                {digicamEnabled && (
-                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 border border-[#efeee9]/15 text-[10px] font-mono text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                    DIGICAM ON
-                  </span>
-                )}
+
+                {/* In-Lightbox Digicam Toggle */}
+                <button
+                  onClick={() => {
+                    setDigicamEnabled(!digicamEnabled)
+                    soundEngine.playTick()
+                    triggerToast(digicamEnabled ? 'Digicam stamp: OFF' : 'Digicam stamp: ACTIVE')
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer min-h-[36px] ${
+                    digicamEnabled
+                      ? 'bg-[#efeee9] text-black border-[#efeee9] font-medium'
+                      : 'bg-white/5 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50'
+                  }`}
+                  aria-label="Toggle digicam timestamp overlay in lightbox"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${digicamEnabled ? 'bg-red-500 animate-pulse' : 'bg-[#efeee9]/40'}`} />
+                  <span>Digicam: {digicamEnabled ? 'ON' : 'OFF'}</span>
+                </button>
+
+                {/* Zoom Toggle Button */}
+                <button
+                  onClick={toggleZoom}
+                  aria-label={zoomLevel === 2 ? 'Zoom out to standard view' : 'Zoom in to inspect details'}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer min-h-[36px] ${
+                    zoomLevel === 2
+                      ? 'bg-[#efeee9] text-black border-[#efeee9] font-medium'
+                      : 'bg-white/5 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50'
+                  }`}
+                >
+                  {zoomLevel === 2 ? <ZoomOut size={13} /> : <ZoomIn size={13} />}
+                  <span>{zoomLevel === 2 ? '1.8x' : '1.0x'}</span>
+                </button>
+
+                {/* Specs / EXIF Panel Toggle Button */}
+                <button
+                  onClick={togglePhotoSpecs}
+                  aria-label="Toggle photo specs and archival details"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer min-h-[36px] ${
+                    showPhotoSpecs
+                      ? 'bg-[#efeee9] text-black border-[#efeee9] font-medium'
+                      : 'bg-white/5 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50'
+                  }`}
+                >
+                  <SlidersHorizontal size={13} />
+                  <span className="hidden xs:inline">Specs</span>
+                </button>
               </div>
+
               <button
                 onClick={closeLightbox}
                 aria-label="Close photo preview"
@@ -2300,19 +2589,31 @@ export default function App() {
               </button>
             </div>
 
-            {/* Modal Image with Touch Swipe Gestures & Parallax Translation */}
+            {/* Modal Image with Real-Time Pull-to-Dismiss & Horizontal Swipe Gestures */}
             <div
               onTouchStart={(e) => {
-                setTouchStartX(e.targetTouches[0].clientX)
-                setTouchStartY(e.targetTouches[0].clientY)
-                setTouchDeltaX(0)
-                setIsSwiping(true)
+                if (e.targetTouches.length === 1) {
+                  setTouchStartX(e.targetTouches[0].clientX)
+                  setTouchStartY(e.targetTouches[0].clientY)
+                  setTouchDeltaX(0)
+                  setTouchDeltaY(0)
+                  setIsSwiping(true)
+                }
               }}
               onTouchMove={(e) => {
-                if (touchStartX === null) return
+                if (touchStartX === null || touchStartY === null) return
                 const currentX = e.targetTouches[0].clientX
+                const currentY = e.targetTouches[0].clientY
                 const deltaX = currentX - touchStartX
-                setTouchDeltaX(Math.max(-120, Math.min(120, deltaX)))
+                const deltaY = currentY - touchStartY
+
+                if (deltaY > 0 && Math.abs(deltaY) > Math.abs(deltaX) && zoomLevel === 1) {
+                  setTouchDeltaY(Math.min(160, deltaY))
+                  setTouchDeltaX(0)
+                } else if (zoomLevel === 1) {
+                  setTouchDeltaX(Math.max(-130, Math.min(130, deltaX)))
+                  setTouchDeltaY(0)
+                }
               }}
               onTouchEnd={(e) => {
                 if (touchStartX !== null && touchStartY !== null) {
@@ -2321,32 +2622,39 @@ export default function App() {
                   const deltaX = currentX - touchStartX
                   const deltaY = currentY - touchStartY
 
-                  if (deltaY > 80 && Math.abs(deltaX) < 55) {
+                  if (deltaY > 75 && Math.abs(deltaX) < 60 && zoomLevel === 1) {
                     closeLightbox()
-                  } else if (deltaX < -40) {
+                  } else if (deltaX < -45 && zoomLevel === 1) {
                     nextLightbox()
-                  } else if (deltaX > 40) {
+                  } else if (deltaX > 45 && zoomLevel === 1) {
                     prevLightbox()
                   }
                 }
                 setTouchStartX(null)
                 setTouchStartY(null)
                 setTouchDeltaX(0)
+                setTouchDeltaY(0)
                 setIsSwiping(false)
               }}
-              className="relative w-full max-h-[58vh] overflow-hidden bg-black flex items-center justify-center my-3 sm:my-4 group touch-pan-y select-none"
+              className="relative w-full max-h-[58vh] overflow-hidden bg-black flex items-center justify-center my-3 group touch-pan-y select-none cursor-pointer"
+              onClick={handlePhotoDoubleTap}
             >
               <div
                 style={{
-                  transform: `translate3d(${touchDeltaX}px, 0, 0)`,
-                  transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
+                  transform: `translate3d(${touchDeltaX}px, ${touchDeltaY > 0 ? touchDeltaY : 0}px, 0) scale(${
+                    zoomLevel === 2 ? 1.75 : touchDeltaY > 0 ? Math.max(0.78, 1 - touchDeltaY / 500) : 1
+                  })`,
+                  opacity: touchDeltaY > 0 ? Math.max(0.4, 1 - touchDeltaY / 320) : 1,
+                  transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.25s ease-out',
                 }}
                 className="relative w-full h-full flex items-center justify-center will-change-transform"
               >
                 <img
                   src={lightboxPhoto.image}
                   alt={lightboxPhoto.title}
-                  className="max-h-[58vh] max-w-full object-contain pointer-events-none"
+                  className={`max-h-[58vh] max-w-full object-contain pointer-events-none transition-transform duration-300 ${
+                    zoomLevel === 2 ? 'scale-100 cursor-zoom-out' : 'cursor-zoom-in'
+                  }`}
                 />
 
                 {/* Digicam REC & Battery Overlay in Lightbox */}
@@ -2365,6 +2673,37 @@ export default function App() {
                     <span className="font-mono text-xs sm:text-sm font-bold tracking-widest text-[#ffaa22] digicam-glow">
                       {lightboxPhoto.digicamStamp}
                     </span>
+                  </div>
+                )}
+
+                {/* Archival Specs Drawer Overlay */}
+                {showPhotoSpecs && (
+                  <div
+                    className="absolute inset-x-3 bottom-3 sm:inset-auto sm:top-3 sm:right-3 sm:max-w-xs bg-black/90 backdrop-blur-md border border-[#efeee9]/25 p-4 space-y-2 text-left z-20 shadow-2xl anim-fade-in"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between pb-1.5 border-b border-[#efeee9]/20 text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/60">
+                      <span>Archival Specs</span>
+                      <span>{lightboxPhoto.specs.archiveRef}</span>
+                    </div>
+                    <div className="space-y-1.5 text-xs font-mono">
+                      <div>
+                        <span className="text-[#efeee9]/50 block text-[9px] uppercase">Medium:</span>
+                        <span className="text-[#efeee9] font-light">{lightboxPhoto.specs.medium}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#efeee9]/50 block text-[9px] uppercase">Setting:</span>
+                        <span className="text-[#efeee9] font-light">{lightboxPhoto.subtitle}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#efeee9]/50 block text-[9px] uppercase">Exposure & Tone:</span>
+                        <span className="text-[#efeee9] font-light">{lightboxPhoto.specs.iso}</span>
+                      </div>
+                      <div>
+                        <span className="text-[#efeee9]/50 block text-[9px] uppercase">Color Profile:</span>
+                        <span className="text-[#efeee9] font-light">{lightboxPhoto.specs.colorProfile}</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -2394,9 +2733,10 @@ export default function App() {
               </button>
             </div>
 
-            {/* Mobile Swipe Hint */}
-            <div className="sm:hidden text-center text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 py-1 select-none">
-              &larr; Swipe left/right &bull; Pull down to close &rarr;
+            {/* Mobile Touch Gestures Hint */}
+            <div className="sm:hidden flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 py-1 px-1 select-none">
+              <span>&larr; Swipe photos &rarr;</span>
+              <span>&bull; Pull down / double-tap zoom &bull;</span>
             </div>
 
             {/* Thumbnail Navigation Strip with Smooth Snap */}
@@ -2404,10 +2744,7 @@ export default function App() {
               {ARCHIVAL_GALLERY.map((thumb, idx) => (
                 <button
                   key={thumb.id}
-                  onClick={() => {
-                    setLightboxIndex(idx)
-                    soundEngine.playTick()
-                  }}
+                  onClick={() => openLightbox(idx)}
                   className={`h-12 w-16 shrink-0 snap-center overflow-hidden border transition-all cursor-pointer min-h-[44px] ${
                     lightboxIndex === idx
                       ? 'border-[#efeee9] opacity-100 scale-105 shadow-md'
@@ -2421,7 +2758,7 @@ export default function App() {
             </div>
 
             {/* Metadata Footer */}
-            <div className="pt-3.5 border-t border-[#efeee9]/15 space-y-1.5">
+            <div className="pt-3 border-t border-[#efeee9]/15 space-y-1.5">
               <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-[#efeee9]/50">
                 <span>{lightboxPhoto.badge}</span>
                 <span>{lightboxPhoto.date}</span>
