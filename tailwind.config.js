@@ -43,6 +43,13 @@ export default {
           "100%": { transform: "translateX(-50%)" },
         },
       },
+      transitionDuration: {
+        '400': '400ms',
+        '600': '600ms',
+      },
+      transitionTimingFunction: {
+        'editorial': 'cubic-bezier(0.76, 0, 0.24, 1)',
+      },
     },
   },
   plugins: [],

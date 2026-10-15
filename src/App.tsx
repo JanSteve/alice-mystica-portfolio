@@ -132,18 +132,14 @@ export default function App() {
       <div className="absolute inset-x-0 top-[16vh] sm:top-[14vh] z-10 overflow-hidden pointer-events-none anim-fade-up delay-marquee">
         <div className="marquee flex w-max whitespace-nowrap font-hn text-[16vh] sm:text-[26vh] leading-none text-cream">
           {/* Half 1 */}
-          <span className="pr-[6vw]">
-            Alice &mdash; Mystica&nbsp;
-          </span>
+          <span className="pr-[6vw]">Alice &mdash; Mystica&nbsp;</span>
           {/* Half 2 for seamless infinite scroll */}
-          <span className="pr-[6vw]">
-            Alice &mdash; Mystica&nbsp;
-          </span>
+          <span className="pr-[6vw]">Alice &mdash; Mystica&nbsp;</span>
         </div>
       </div>
 
       {/* LAYER 3: Horizontal cream rule (z-10, scaleX 0->1, origin left, delay 1200ms) */}
-      <div className="absolute inset-x-6 sm:inset-x-10 bottom-[5.5rem] sm:bottom-28 z-10 h-0.5 bg-cream anim-line" />
+      <div className="absolute inset-x-6 sm:inset-x-10 bottom-[5.5rem] sm:bottom-28 z-10 h-0.5 bg-cream anim-line origin-left" />
 
       {/* LAYER 4: Desktop footer (sm:z-10) / Mobile footer (z-30) */}
       <footer className="absolute inset-x-0 bottom-0 z-30 sm:z-10 flex items-end justify-between px-6 pb-5 sm:px-10 sm:pb-8 text-xs sm:text-sm leading-relaxed font-hn pointer-events-auto">
@@ -251,12 +247,18 @@ export default function App() {
       <button
         onClick={toggleDrawer}
         aria-label={drawerOpen ? "Close menu" : "Open menu"}
-        className="sm:hidden fixed right-6 top-6 z-50 h-10 w-10 flex items-center justify-center anim-fade-up delay-hamburger focus:outline-none"
+        className={`sm:hidden fixed right-6 top-6 z-50 h-10 w-10 flex items-center justify-center anim-fade-up delay-hamburger focus:outline-none ${
+          drawerOpen ? 'pointer-events-none' : 'pointer-events-auto'
+        }`}
       >
-        <div className="relative h-4 w-6 flex flex-col justify-between items-center pointer-events-none">
+        <div
+          className={`relative h-4 w-6 flex flex-col justify-between items-center transition-opacity duration-300 ${
+            drawerOpen ? 'opacity-0 delay-[300ms]' : 'opacity-100'
+          }`}
+        >
           <span
             className={`block h-0.5 w-6 bg-cream rounded-full transition-transform duration-500 origin-center ${
-              drawerOpen ? 'translate-y-[7px] rotate-45 opacity-0' : ''
+              drawerOpen ? 'translate-y-[7px] rotate-45' : ''
             }`}
             style={{ transitionTimingFunction: 'cubic-bezier(0.76, 0, 0.24, 1)' }}
           />
@@ -267,7 +269,7 @@ export default function App() {
           />
           <span
             className={`block h-0.5 w-6 bg-cream rounded-full transition-transform duration-500 origin-center ${
-              drawerOpen ? '-translate-y-[7px] -rotate-45 opacity-0' : ''
+              drawerOpen ? '-translate-y-[7px] -rotate-45' : ''
             }`}
             style={{ transitionTimingFunction: 'cubic-bezier(0.76, 0, 0.24, 1)' }}
           />
@@ -297,8 +299,8 @@ export default function App() {
           <button
             onClick={toggleDrawer}
             aria-label="Close drawer"
-            className={`absolute right-6 top-6 text-cream transition-all duration-300 focus:outline-none ${
-              drawerOpen ? 'opacity-100 rotate-0 delay-300 pointer-events-auto' : 'opacity-0 rotate-90 pointer-events-none'
+            className={`absolute right-6 top-6 z-50 text-cream transition-all duration-300 focus:outline-none ${
+              drawerOpen ? 'opacity-100 rotate-0 delay-[300ms] pointer-events-auto' : 'opacity-0 rotate-90 pointer-events-none'
             }`}
           >
             <X size={26} strokeWidth={1.5} />
@@ -321,10 +323,14 @@ export default function App() {
                 { label: "Milestones", action: () => handleNavClick('milestones') },
                 { label: "Message", action: () => handleNavClick('message') },
               ].map((item, idx) => (
-                <button
+                <a
                   key={item.label}
-                  onClick={item.action}
-                  className={`text-left text-4xl font-normal text-cream hover:text-cream/70 transition-all duration-500 ${
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    item.action()
+                  }}
+                  className={`text-left text-4xl font-normal text-cream hover:text-cream/70 transition-all duration-500 block ${
                     drawerOpen
                       ? 'opacity-100 translate-y-0'
                       : 'opacity-0 translate-y-6'
@@ -334,7 +340,7 @@ export default function App() {
                   }}
                 >
                   {item.label}
-                </button>
+                </a>
               ))}
             </nav>
           </div>
@@ -343,7 +349,7 @@ export default function App() {
           <div className="mt-auto pt-8 border-t border-cream/10 flex flex-col gap-4">
             <span
               className={`text-xs uppercase tracking-[0.2em] text-cream/50 mb-1 transition-all duration-500 ${
-                drawerOpen ? 'opacity-100 translate-y-0 delay-500' : 'opacity-0 translate-y-3'
+                drawerOpen ? 'opacity-100 translate-y-0 delay-500' : 'opacity-0 translate-y-4'
               }`}
             >
               Find Me
