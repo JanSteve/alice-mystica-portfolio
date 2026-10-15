@@ -1,0 +1,181 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: "Helvetica Neue ME";
+  src: url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.eot");
+  src: url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.eot?#iefix") format("embedded-opentype"),
+       url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.woff2") format("woff2"),
+       url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.woff") format("woff"),
+       url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.ttf") format("truetype"),
+       url("https://db.onlinewebfonts.com/t/95cecf452d3208890088a5b4c19c7ecf.svg#Helvetica Neue ME") format("svg");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-cream: #efeee9;
+}
+
+body {
+  font-family: 'Helvetica Neue ME', Helvetica, Arial, sans-serif;
+  background-color: #0d0d0d;
+  color: #efeee9;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Entrance Keyframes */
+@keyframes fadeInKeyframe {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes riseInKeyframe {
+  from {
+    opacity: 0;
+    transform: translateY(4vh) scale(1.03);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fadeUpKeyframe {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lineKeyframe {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes marqueeKeyframe {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Animation Classes with Animation-Fill-Mode: both */
+.anim-fade-in {
+  animation: fadeInKeyframe 1.2s ease-out both;
+}
+
+.anim-rise-in {
+  animation: riseInKeyframe 1.4s cubic-bezier(0.22, 1, 0.36, 1) 300ms both;
+}
+
+.anim-fade-up {
+  animation: fadeUpKeyframe 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-line {
+  animation: lineKeyframe 1.1s cubic-bezier(0.76, 0, 0.24, 1) 1200ms both;
+  transform-origin: left;
+}
+
+.marquee {
+  display: flex;
+  width: max-content;
+  white-space: nowrap;
+  animation: marqueeKeyframe 30s linear infinite;
+  will-change: transform;
+}
+
+/* Exact Delays for anim-fade-up */
+.delay-marquee {
+  animation-delay: 500ms;
+}
+
+.delay-brand {
+  animation-delay: 800ms;
+}
+
+.delay-year,
+.delay-hamburger {
+  animation-delay: 900ms;
+}
+
+.delay-nav-0 {
+  animation-delay: 1000ms;
+}
+
+.delay-nav-1 {
+  animation-delay: 1080ms;
+}
+
+.delay-nav-2 {
+  animation-delay: 1160ms;
+}
+
+.delay-nav-3 {
+  animation-delay: 1240ms;
+}
+
+.delay-social-0 {
+  animation-delay: 1150ms;
+}
+
+.delay-social-1 {
+  animation-delay: 1230ms;
+}
+
+.delay-social-2 {
+  animation-delay: 1310ms;
+}
+
+.delay-footer-left {
+  animation-delay: 1400ms;
+}
+
+.delay-footer-right {
+  animation-delay: 1550ms;
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-in,
+  .anim-rise-in,
+  .anim-fade-up,
+  .anim-line,
+  .marquee {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* Custom Scrollbar for editorial sections */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0d0d;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #efeee9;
+}
