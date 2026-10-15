@@ -15,7 +15,9 @@ import {
   MessageSquare,
   Check,
   Compass,
-  Heart
+  Heart,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 
 // =========================================================================
@@ -116,6 +118,9 @@ interface ArchivalPhoto {
   caption: string
   image: string
   badge: string
+  aspectRatio: string
+  objectPosition: string
+  spanClass?: string
 }
 
 const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
@@ -127,7 +132,10 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     tag: "Becoming",
     badge: "01 / PORTRAIT STUDY",
     caption: "Dramatic red-light portrait study — exploring mood, presence, and visual storytelling as part of the creative archive.",
-    image: ASSETS.heroRed
+    image: ASSETS.heroRed,
+    aspectRatio: "aspect-[2/1] sm:aspect-[21/9]",
+    objectPosition: "object-center",
+    spanClass: "md:col-span-2 lg:col-span-2"
   },
   {
     id: "smile-candid",
@@ -137,7 +145,9 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     tag: "Nostalgic Frames",
     badge: "02 / CANDID EXPRESSION",
     caption: "Unrehearsed warmth and open laughter — capturing the effortless joy, individuality, and candid charm behind the archive.",
-    image: ASSETS.smilePortrait
+    image: ASSETS.smilePortrait,
+    aspectRatio: "aspect-[4/5]",
+    objectPosition: "object-top"
   },
   {
     id: "childhood-2020",
@@ -147,7 +157,9 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     tag: "Childhood Archives",
     badge: "03 / DIGICAM ARCHIVE",
     caption: "Digicam frame stamped 27 November 2020 at 3:56 PM — innocent smiles, big dreams, and an enduring curiosity about the world.",
-    image: ASSETS.childhood2020
+    image: ASSETS.childhood2020,
+    aspectRatio: "aspect-[4/3]",
+    objectPosition: "object-top"
   },
   {
     id: "school-days",
@@ -157,7 +169,9 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     tag: "School Days",
     badge: "04 / ROOTS & EDUCATION",
     caption: "Neat uniform, lunchbox in hand, and eyes full of wonder — the early foundation of learning, discipline, and discovery.",
-    image: ASSETS.schoolUniform
+    image: ASSETS.schoolUniform,
+    aspectRatio: "aspect-[4/3]",
+    objectPosition: "object-center"
   },
   {
     id: "childhood-playful",
@@ -167,17 +181,41 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     tag: "Becoming",
     badge: "05 / UNFILTERED SPARK",
     caption: "Red sweatshirt, expressive gestures, and unapologetic character — preserving the spark of joy and authenticity through all stages of life.",
-    image: ASSETS.childhoodPlayful
+    image: ASSETS.childhoodPlayful,
+    aspectRatio: "aspect-[4/5]",
+    objectPosition: "object-top"
   }
 ]
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedInterest, setSelectedInterest] = useState<number>(0)
-  const [lightboxPhoto, setLightboxPhoto] = useState<ArchivalPhoto | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [messageForm, setMessageForm] = useState({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
   const [messageSubmitted, setMessageSubmitted] = useState(false)
   const [scrolled, setScrolled] = useState(false)
+
+  const lightboxPhoto = lightboxIndex !== null ? ARCHIVAL_GALLERY[lightboxIndex] : null
+
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index)
+  }
+
+  const closeLightbox = () => {
+    setLightboxIndex(null)
+  }
+
+  const nextLightbox = () => {
+    if (lightboxIndex !== null) {
+      setLightboxIndex((lightboxIndex + 1) % ARCHIVAL_GALLERY.length)
+    }
+  }
+
+  const prevLightbox = () => {
+    if (lightboxIndex !== null) {
+      setLightboxIndex((lightboxIndex - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length)
+    }
+  }
 
   // Document Title
   useEffect(() => {
@@ -199,7 +237,7 @@ export default function App() {
 
   // Lock scroll only when drawer or lightbox is open
   useEffect(() => {
-    if (drawerOpen || lightboxPhoto) {
+    if (drawerOpen || lightboxIndex !== null) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
@@ -207,26 +245,51 @@ export default function App() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [drawerOpen, lightboxPhoto])
+  }, [drawerOpen, lightboxIndex])
 
-  // Close lightbox on Escape key
+  // Close lightbox/drawer on Escape key & arrow keys navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setLightboxPhoto(null)
+        setLightboxIndex(null)
         setDrawerOpen(false)
+      } else if (lightboxIndex !== null) {
+        if (e.key === 'ArrowRight') {
+          setLightboxIndex((prev) => (prev !== null ? (prev + 1) % ARCHIVAL_GALLERY.length : null))
+        } else if (e.key === 'ArrowLeft') {
+          setLightboxIndex((prev) => (prev !== null ? (prev - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length : null))
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [lightboxIndex])
+
+  // Initial load hash navigation
+  useEffect(() => {
+    if (window.location.hash) {
+      const id = window.location.hash.replace('#', '')
+      const el = document.getElementById(id)
+      if (el) {
+        setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 200)
+      }
+    }
   }, [])
 
-  const handleNavClick = (sectionId: string) => {
-    setDrawerOpen(false)
-    const element = document.getElementById(sectionId)
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' })
+  const handleNavClick = (sectionId: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
     }
+    setDrawerOpen(false)
+    document.body.style.overflow = ''
+
+    setTimeout(() => {
+      const element = document.getElementById(sectionId)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' })
+        window.history.pushState(null, '', `#${sectionId}`)
+      }
+    }, 40)
   }
 
   const handleFormSubmit = (e: React.FormEvent) => {
@@ -267,49 +330,56 @@ export default function App() {
 
         {/* Desktop Nav Links */}
         <nav className="hidden lg:flex items-center gap-8 text-sm font-light tracking-wide text-[#efeee9]/80">
-          <button
-            onClick={() => handleNavClick('about')}
+          <a
+            href="#about"
+            onClick={(e) => handleNavClick('about', e)}
             className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
           >
             About
-          </button>
-          <button
-            onClick={() => handleNavClick('interests')}
+          </a>
+          <a
+            href="#interests"
+            onClick={(e) => handleNavClick('interests', e)}
             className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
           >
             Interests
-          </button>
-          <button
-            onClick={() => handleNavClick('archive')}
+          </a>
+          <a
+            href="#archive"
+            onClick={(e) => handleNavClick('archive', e)}
             className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
           >
             Archive
-          </button>
-          <button
-            onClick={() => handleNavClick('milestones')}
+          </a>
+          <a
+            href="#milestones"
+            onClick={(e) => handleNavClick('milestones', e)}
             className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
           >
             Milestones
-          </button>
-          <button
-            onClick={() => handleNavClick('philosophy')}
+          </a>
+          <a
+            href="#philosophy"
+            onClick={(e) => handleNavClick('philosophy', e)}
             className="hover:text-[#efeee9] hover:underline underline-offset-8 transition-colors duration-200 cursor-pointer"
           >
             Philosophy
-          </button>
-          <button
-            onClick={() => handleNavClick('contact')}
+          </a>
+          <a
+            href="#contact"
+            onClick={(e) => handleNavClick('contact', e)}
             className="px-4 py-2 border border-[#efeee9]/30 text-xs uppercase tracking-widest hover:bg-[#efeee9] hover:text-black transition-all duration-300 cursor-pointer"
           >
             Inquiry
-          </button>
+          </a>
         </nav>
 
         {/* Mobile Hamburger Button */}
         <button
           onClick={() => setDrawerOpen(true)}
+          aria-expanded={drawerOpen}
           aria-label="Open navigation menu"
-          className="lg:hidden p-2 text-[#efeee9] hover:opacity-70 transition-opacity focus:outline-none"
+          className="lg:hidden p-2 text-[#efeee9] hover:opacity-70 transition-opacity focus:outline-none cursor-pointer"
         >
           <Menu size={24} strokeWidth={1.5} />
         </button>
@@ -359,13 +429,14 @@ export default function App() {
                 { label: "06. Philosophy & Beyond", id: "philosophy" },
                 { label: "07. Contact & Dialogue", id: "contact" },
               ].map((link) => (
-                <button
+                <a
                   key={link.id}
-                  onClick={() => handleNavClick(link.id)}
-                  className="text-left text-2xl font-light text-[#efeee9] hover:text-[#efeee9]/60 transition-colors"
+                  href={`#${link.id}`}
+                  onClick={(e) => handleNavClick(link.id, e)}
+                  className="text-left text-2xl font-light text-[#efeee9] hover:text-[#efeee9]/60 transition-colors cursor-pointer"
                 >
                   {link.label}
-                </button>
+                </a>
               ))}
             </nav>
           </div>
@@ -421,13 +492,14 @@ export default function App() {
           </div>
 
           {/* Centered Scroll Indicator */}
-          <button
-            onClick={() => handleNavClick('about')}
+          <a
+            href="#about"
+            onClick={(e) => handleNavClick('about', e)}
             className="mx-auto sm:mx-0 flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer"
           >
             <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
             <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300" />
-          </button>
+          </a>
 
           <div className="anim-fade-up delay-footer-right text-left sm:text-right flex flex-col gap-0.5">
             <span className="tracking-widest uppercase font-mono text-[11px] text-[#efeee9]/60">Philosophy</span>
@@ -442,7 +514,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="about"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header */}
@@ -465,11 +537,11 @@ export default function App() {
             {/* Left Column: Portrait Showcase */}
             <div className="lg:col-span-5 space-y-5">
               <div className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2">
-                <div className="relative overflow-hidden aspect-[4/5] sm:aspect-square lg:aspect-[4/5]">
+                <div className="relative overflow-hidden aspect-[4/5]">
                   <img
                     src={ASSETS.smilePortrait}
                     alt="Alice Mystica smiling portrait with (Can you kiss me more?)"
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 group-hover:scale-105"
+                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-editorial"
                   />
                   <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-[#efeee9] border border-[#efeee9]/20 font-mono">
                     Archive Ref &bull; 02
@@ -541,7 +613,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="interests"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header */}
@@ -676,7 +748,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="archive"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header */}
@@ -699,17 +771,17 @@ export default function App() {
             {ARCHIVAL_GALLERY.map((item, index) => (
               <div
                 key={item.id}
-                onClick={() => setLightboxPhoto(item)}
+                onClick={() => openLightbox(index)}
                 className={`group cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/50 transition-all duration-500 overflow-hidden flex flex-col justify-between ${
-                  index === 0 ? 'md:col-span-2 lg:col-span-2' : ''
+                  item.spanClass || ''
                 }`}
               >
                 {/* Image Container */}
-                <div className="relative overflow-hidden bg-black aspect-[4/3] sm:aspect-[16/10]">
+                <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
                   <img
                     src={item.image}
                     alt={item.title}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
+                    className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
                   />
                   {/* Subtle Badge Overlay */}
                   <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20">
@@ -760,7 +832,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="milestones"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header */}
@@ -855,7 +927,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="philosophy"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header */}
@@ -911,7 +983,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="contact"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e]"
+        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Section Header */}
@@ -942,7 +1014,7 @@ export default function App() {
                   setMessageSubmitted(false)
                   setMessageForm({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
                 }}
-                className="mt-6 text-xs uppercase tracking-widest text-[#efeee9] underline underline-offset-4 hover:opacity-70 transition-opacity"
+                className="mt-6 text-xs uppercase tracking-widest text-[#efeee9] underline underline-offset-4 hover:opacity-70 transition-opacity cursor-pointer"
               >
                 Send Another Note &rarr;
               </button>
@@ -951,10 +1023,12 @@ export default function App() {
             <form onSubmit={handleFormSubmit} className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                  <label htmlFor="contact-name" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
                     Your Name *
                   </label>
                   <input
+                    id="contact-name"
+                    name="name"
                     type="text"
                     required
                     value={messageForm.name}
@@ -964,10 +1038,12 @@ export default function App() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                  <label htmlFor="contact-email" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
                     Email Address *
                   </label>
                   <input
+                    id="contact-email"
+                    name="email"
                     type="email"
                     required
                     value={messageForm.email}
@@ -979,13 +1055,15 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                <label htmlFor="contact-topic" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
                   Topic of Dialogue
                 </label>
                 <select
+                  id="contact-topic"
+                  name="subject"
                   value={messageForm.subject}
                   onChange={(e) => setMessageForm({ ...messageForm, subject: e.target.value })}
-                  className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm transition-colors"
+                  className="w-full bg-black/50 border border-[#efeee9]/20 px-4 py-3.5 text-[#efeee9] focus:border-[#efeee9] focus:outline-none text-sm transition-colors cursor-pointer"
                 >
                   <option value="Creative Collaboration" className="bg-[#111111] text-[#efeee9]">Creative Collaboration</option>
                   <option value="Academic & Business Project" className="bg-[#111111] text-[#efeee9]">Academic &amp; Business Project</option>
@@ -995,10 +1073,12 @@ export default function App() {
               </div>
 
               <div>
-                <label className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
+                <label htmlFor="contact-message" className="block text-xs uppercase tracking-widest text-[#efeee9]/60 mb-2 font-mono">
                   Message *
                 </label>
                 <textarea
+                  id="contact-message"
+                  name="message"
                   rows={5}
                   required
                   value={messageForm.message}
@@ -1041,21 +1121,21 @@ export default function App() {
             <div className="flex flex-wrap gap-8 text-xs uppercase tracking-wider font-mono text-[#efeee9]/70">
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-[#efeee9]/40 tracking-widest">Index</span>
-                <button onClick={() => handleNavClick('hero')} className="text-left hover:text-[#efeee9] transition-colors">Top</button>
-                <button onClick={() => handleNavClick('about')} className="text-left hover:text-[#efeee9] transition-colors">About</button>
-                <button onClick={() => handleNavClick('interests')} className="text-left hover:text-[#efeee9] transition-colors">Interests</button>
+                <a href="#hero" onClick={(e) => handleNavClick('hero', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Top</a>
+                <a href="#about" onClick={(e) => handleNavClick('about', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">About</a>
+                <a href="#interests" onClick={(e) => handleNavClick('interests', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Interests</a>
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-[#efeee9]/40 tracking-widest">Chapters</span>
-                <button onClick={() => handleNavClick('archive')} className="text-left hover:text-[#efeee9] transition-colors">Archival</button>
-                <button onClick={() => handleNavClick('milestones')} className="text-left hover:text-[#efeee9] transition-colors">Milestones</button>
-                <button onClick={() => handleNavClick('philosophy')} className="text-left hover:text-[#efeee9] transition-colors">Philosophy</button>
+                <a href="#archive" onClick={(e) => handleNavClick('archive', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Archival</a>
+                <a href="#milestones" onClick={(e) => handleNavClick('milestones', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Milestones</a>
+                <a href="#philosophy" onClick={(e) => handleNavClick('philosophy', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Philosophy</a>
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-[#efeee9]/40 tracking-widest">Connect</span>
-                <a href="#contact" onClick={() => handleNavClick('contact')} className="hover:text-[#efeee9] transition-colors">Inquiry</a>
-                <a href="#" className="hover:text-[#efeee9] transition-colors">Instagram</a>
-                <a href="#" className="hover:text-[#efeee9] transition-colors">LinkedIn</a>
+                <a href="#contact" onClick={(e) => handleNavClick('contact', e)} className="hover:text-[#efeee9] transition-colors cursor-pointer">Inquiry</a>
+                <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#efeee9] transition-colors">Instagram</a>
+                <a href="https://linkedin.com" target="_blank" rel="noopener noreferrer" className="hover:text-[#efeee9] transition-colors">LinkedIn</a>
               </div>
             </div>
           </div>
@@ -1076,33 +1156,63 @@ export default function App() {
         <div
           role="dialog"
           aria-modal="true"
+          aria-label={lightboxPhoto.title}
           className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-10 animate-fade-in"
-          onClick={() => setLightboxPhoto(null)}
+          onClick={closeLightbox}
         >
           <div
-            className="relative max-w-4xl max-h-[90vh] bg-[#111111] border border-[#efeee9]/20 p-6 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            className="relative max-w-4xl w-full max-h-[92vh] bg-[#111111] border border-[#efeee9]/20 p-6 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close Button */}
-            <button
-              onClick={() => setLightboxPhoto(null)}
-              aria-label="Close photo preview"
-              className="absolute top-4 right-4 text-[#efeee9]/70 hover:text-[#efeee9] p-2 transition-colors z-20"
-            >
-              <X size={26} strokeWidth={1.5} />
-            </button>
+            {/* Top Bar with Counter and Close Button */}
+            <div className="flex items-center justify-between pb-4 border-b border-[#efeee9]/15">
+              <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9]/60">
+                Frame {lightboxIndex !== null ? `0${lightboxIndex + 1} / 0${ARCHIVAL_GALLERY.length}` : ''} &bull; {lightboxPhoto.tag}
+              </span>
+              <button
+                onClick={closeLightbox}
+                aria-label="Close photo preview"
+                className="text-[#efeee9]/70 hover:text-[#efeee9] p-1.5 transition-colors cursor-pointer"
+              >
+                <X size={24} strokeWidth={1.5} />
+              </button>
+            </div>
 
-            {/* Modal Image */}
-            <div className="w-full max-h-[60vh] overflow-hidden bg-black flex items-center justify-center">
+            {/* Modal Image with Navigation Arrows */}
+            <div className="relative w-full max-h-[62vh] overflow-hidden bg-black flex items-center justify-center my-4 group">
               <img
                 src={lightboxPhoto.image}
                 alt={lightboxPhoto.title}
-                className="max-h-[60vh] max-w-full object-contain"
+                className="max-h-[62vh] max-w-full object-contain"
               />
+
+              {/* Prev Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  prevLightbox()
+                }}
+                aria-label="Previous photo"
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+              >
+                <ChevronLeft size={22} strokeWidth={1.5} />
+              </button>
+
+              {/* Next Button */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  nextLightbox()
+                }}
+                aria-label="Next photo"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+              >
+                <ChevronRight size={22} strokeWidth={1.5} />
+              </button>
             </div>
 
             {/* Metadata Footer */}
-            <div className="mt-6 pt-4 border-t border-[#efeee9]/15 space-y-2">
+            <div className="pt-4 border-t border-[#efeee9]/15 space-y-2">
               <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-[#efeee9]/50">
                 <span>{lightboxPhoto.badge}</span>
                 <span>{lightboxPhoto.date}</span>

@@ -101,6 +101,10 @@ body {
   will-change: transform;
 }
 
+.bg-radial-gradient {
+  background: radial-gradient(circle at 50% 45%, rgba(13, 13, 13, 0.1) 0%, rgba(13, 13, 13, 0.75) 75%, rgba(13, 13, 13, 0.95) 100%);
+}
+
 /* Exact Delays for anim-fade-up */
 .delay-marquee {
   animation-delay: 500ms;
