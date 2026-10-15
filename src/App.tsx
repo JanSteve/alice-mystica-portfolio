@@ -16,7 +16,14 @@ import {
   Check,
   Compass,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Volume2,
+  VolumeX,
+  Share2,
+  Copy,
+  Clock,
+  Battery,
+  SlidersHorizontal
 } from 'lucide-react'
 
 // =========================================================================
@@ -120,6 +127,7 @@ interface ArchivalPhoto {
   aspectRatio: string
   objectPosition: string
   spanClass?: string
+  digicamStamp: string
 }
 
 const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
@@ -134,7 +142,8 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     image: ASSETS.heroRed,
     aspectRatio: "aspect-[2/1] sm:aspect-[21/9]",
     objectPosition: "object-center",
-    spanClass: "md:col-span-2 lg:col-span-2"
+    spanClass: "md:col-span-2 lg:col-span-2",
+    digicamStamp: "'25 10 15 21:40"
   },
   {
     id: "smile-candid",
@@ -146,7 +155,8 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     caption: "Unrehearsed warmth and open laughter — capturing the effortless joy, individuality, and candid charm behind the archive.",
     image: ASSETS.smilePortrait,
     aspectRatio: "aspect-[4/5]",
-    objectPosition: "object-top"
+    objectPosition: "object-top",
+    digicamStamp: "'25 04 12 18:24"
   },
   {
     id: "childhood-2020",
@@ -158,7 +168,8 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     caption: "Digicam frame stamped 27 November 2020 at 3:56 PM — innocent smiles, big dreams, and an enduring curiosity about the world.",
     image: ASSETS.childhood2020,
     aspectRatio: "aspect-[4/3]",
-    objectPosition: "object-top"
+    objectPosition: "object-top",
+    digicamStamp: "'20 11 27 15:56"
   },
   {
     id: "school-days",
@@ -170,7 +181,8 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     caption: "Neat uniform, lunchbox in hand, and eyes full of wonder — the early foundation of learning, discipline, and discovery.",
     image: ASSETS.schoolUniform,
     aspectRatio: "aspect-[4/3]",
-    objectPosition: "object-center"
+    objectPosition: "object-center",
+    digicamStamp: "'14 06 18 08:30"
   },
   {
     id: "childhood-playful",
@@ -182,7 +194,8 @@ const ARCHIVAL_GALLERY: ArchivalPhoto[] = [
     caption: "Red sweatshirt, expressive gestures, and unapologetic character — preserving the spark of joy and authenticity through all stages of life.",
     image: ASSETS.childhoodPlayful,
     aspectRatio: "aspect-[4/5]",
-    objectPosition: "object-top"
+    objectPosition: "object-top",
+    digicamStamp: "'16 08 24 16:15"
   }
 ]
 
@@ -202,6 +215,289 @@ const SECTIONS: SectionItem[] = [
   { id: 'philosophy', number: '05', title: 'Perspective & Vision', navLabel: 'Philosophy' },
   { id: 'contact', number: '06', title: 'Inquiry & Dialogue', navLabel: 'Inquiry' },
 ]
+
+// =========================================================================
+// AMBIENT SOUNDSCAPE ENGINE (Web Audio API Synthesizer)
+// Reflecting Interest 02: Music & Discovery — Zero External Assets
+// =========================================================================
+
+class SoundscapeController {
+  private ctx: AudioContext | null = null
+  private gainNode: GainNode | null = null
+  private oscillators: OscillatorNode[] = []
+  private filter: BiquadFilterNode | null = null
+  public isPlaying = false
+
+  public start(): boolean {
+    if (this.isPlaying) return true
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioCtx) return false
+
+      this.ctx = new AudioCtx()
+      if (this.ctx.state === 'suspended') {
+        this.ctx.resume()
+      }
+
+      const now = this.ctx.currentTime
+
+      // Warm analog low-pass filter to create peaceful velvety backdrop
+      this.filter = this.ctx.createBiquadFilter()
+      this.filter.type = 'lowpass'
+      this.filter.frequency.setValueAtTime(360, now)
+
+      // Master gain node with smooth fade-in
+      this.gainNode = this.ctx.createGain()
+      this.gainNode.gain.setValueAtTime(0.0001, now)
+      this.gainNode.gain.exponentialRampToValueAtTime(0.045, now + 1.8)
+
+      // Pentatonic warm chord: D3 (146.83Hz), A3 (220.0Hz), D4 (293.66Hz), F#4 (369.99Hz)
+      const frequencies = [146.83, 220.00, 293.66, 369.99]
+      this.oscillators = frequencies.map((freq, idx) => {
+        const osc = this.ctx!.createOscillator()
+        osc.type = idx % 2 === 0 ? 'sine' : 'triangle'
+        osc.frequency.setValueAtTime(freq, now)
+        // Subtle micro-chorus detuning
+        osc.detune.setValueAtTime((idx - 1.5) * 5, now)
+
+        const oscGain = this.ctx!.createGain()
+        oscGain.gain.setValueAtTime(0.25, now)
+
+        osc.connect(oscGain)
+        oscGain.connect(this.filter!)
+        osc.start(now)
+        return osc
+      })
+
+      this.filter.connect(this.gainNode)
+      this.gainNode.connect(this.ctx.destination)
+      this.isPlaying = true
+      return true
+    } catch {
+      this.isPlaying = false
+      return false
+    }
+  }
+
+  public stop(): boolean {
+    if (!this.gainNode || !this.ctx) {
+      this.isPlaying = false
+      return false
+    }
+    try {
+      const now = this.ctx.currentTime
+      this.gainNode.gain.setValueAtTime(this.gainNode.gain.value, now)
+      this.gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.0)
+      setTimeout(() => {
+        this.oscillators.forEach(osc => {
+          try { osc.stop() } catch { /* ignore */ }
+        })
+        this.oscillators = []
+        if (this.ctx) {
+          try { this.ctx.close() } catch { /* ignore */ }
+          this.ctx = null
+        }
+        this.isPlaying = false
+      }, 1050)
+      this.isPlaying = false
+      return false
+    } catch {
+      this.isPlaying = false
+      return false
+    }
+  }
+
+  public playTick() {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(800, ctx.currentTime)
+      osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.035)
+      gain.gain.setValueAtTime(0.025, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.035)
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+      osc.stop(ctx.currentTime + 0.035)
+      setTimeout(() => {
+        try { ctx.close() } catch { /* ignore */ }
+      }, 60)
+    } catch {
+      // Audio not permitted
+    }
+  }
+}
+
+const soundEngine = new SoundscapeController()
+
+// =========================================================================
+// LIVE TIME CLOCK (IST • UTC+5:30)
+// Pentagram / Bas.dev / Swiss international studio time badge
+// =========================================================================
+
+function LiveTimeClock({ compact = false }: { compact?: boolean }) {
+  const [timeStr, setTimeStr] = useState('')
+
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const now = new Date()
+        const formatter = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+        setTimeStr(formatter.format(now))
+      } catch {
+        setTimeStr('12:00:00')
+      }
+    }
+    updateTime()
+    const timer = setInterval(updateTime, 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  return (
+    <div className={`flex items-center gap-2 font-mono uppercase tracking-widest text-[#efeee9]/70 select-none ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+      </span>
+      <span>IST &bull; {timeStr || '--:--:--'} (UTC+5:30)</span>
+    </div>
+  )
+}
+
+// =========================================================================
+// AUDIO TOGGLE & EQUALIZER VISUALIZER BUTTON
+// =========================================================================
+
+function AudioToggle({
+  isPlaying,
+  onToggle,
+}: {
+  isPlaying: boolean
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={isPlaying ? 'Mute ambient soundscape' : 'Play ambient soundscape'}
+      className={`px-3 py-1.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer font-mono tracking-wider uppercase select-none min-h-[40px] ${
+        isPlaying
+          ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_15px_rgba(239,238,233,0.3)] font-medium'
+          : 'bg-[#141414]/90 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
+      }`}
+    >
+      {isPlaying ? (
+        <div className="flex items-end gap-[2px] h-3.5 w-3.5 justify-center">
+          <span className="w-[2px] bg-black rounded-full anim-bar-1" />
+          <span className="w-[2px] bg-black rounded-full anim-bar-2" />
+          <span className="w-[2px] bg-black rounded-full anim-bar-3" />
+          <span className="w-[2px] bg-black rounded-full anim-bar-4" />
+        </div>
+      ) : (
+        <VolumeX size={14} className="opacity-60" />
+      )}
+      <span className="text-[10px] hidden xs:inline-block sm:inline-block">
+        {isPlaying ? 'Ambience' : 'Sound'}
+      </span>
+    </button>
+  )
+}
+
+// =========================================================================
+// TACTILE TOAST NOTIFICATION
+// =========================================================================
+
+function ToastNotification({ message, isVisible }: { message: string; isVisible: boolean }) {
+  if (!isVisible) return null
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed bottom-20 left-1/2 -translate-x-1/2 sm:bottom-8 sm:left-auto sm:right-28 z-50 px-4 py-2 bg-[#efeee9] text-black rounded-full shadow-2xl flex items-center gap-2 text-xs font-mono uppercase tracking-wider anim-fade-in pointer-events-none border border-black/10"
+    >
+      <Check size={14} strokeWidth={2.5} />
+      <span>{message}</span>
+    </div>
+  )
+}
+
+// =========================================================================
+// MOBILE FLOATING BOTTOM BAR (sm:hidden)
+// One-Handed Thumb Reach Navigation for Framer/Awwwards Mobile Excellence
+// =========================================================================
+
+function MobileBottomBar({
+  activeSection,
+  sections,
+  onNavigate,
+  onScrollToTop,
+  scrollProgress,
+}: {
+  activeSection: string
+  sections: SectionItem[]
+  onNavigate: (id: string) => void
+  onScrollToTop: () => void
+  scrollProgress: number
+}) {
+  const currentMeta = sections.find((s) => s.id === activeSection) || sections[0]
+  const currentIndex = sections.findIndex((s) => s.id === activeSection)
+  const nextSection = sections[(currentIndex + 1) % sections.length]
+
+  return (
+    <aside
+      aria-label="Mobile quick actions"
+      className="fixed bottom-4 inset-x-3 z-40 sm:hidden pointer-events-auto"
+    >
+      <div className="bg-[#121212]/92 backdrop-blur-xl border border-[#efeee9]/25 rounded-full px-3.5 py-2 shadow-2xl flex items-center justify-between gap-2">
+        {/* Next Chapter Advance Pill */}
+        <button
+          onClick={() => onNavigate(nextSection.id)}
+          aria-label={`Advance to next chapter: ${nextSection.title}`}
+          className="flex items-center gap-2 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity cursor-pointer min-h-[44px] px-2 active:scale-95"
+        >
+          <span className="w-2 h-2 rounded-full bg-[#efeee9] animate-pulse shrink-0" />
+          <span className="truncate max-w-[125px]">
+            {currentMeta.number}. {currentMeta.navLabel}
+          </span>
+          <ArrowDown size={11} className="opacity-60 -rotate-90 shrink-0" />
+        </button>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Quick Inquiry Jump */}
+          <button
+            onClick={() => onNavigate('contact')}
+            className={`px-3 py-1.5 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all cursor-pointer min-h-[38px] flex items-center justify-center active:scale-95 ${
+              activeSection === 'contact'
+                ? 'bg-[#efeee9] text-black font-medium'
+                : 'bg-white/10 text-[#efeee9] hover:bg-[#efeee9] hover:text-black border border-[#efeee9]/20'
+            }`}
+          >
+            Inquiry
+          </button>
+
+          {/* Top Progress Ring & Percentage */}
+          <button
+            onClick={onScrollToTop}
+            aria-label="Scroll back to top"
+            className="px-2.5 py-1.5 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all flex items-center gap-1 min-h-[38px]"
+          >
+            <ArrowUp size={12} />
+            <span className="text-[10px] font-mono">{Math.round(scrollProgress)}%</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+  )
+}
 
 // =========================================================================
 // REVEAL ON SCROLL COMPONENT (IntersectionObserver + Compositor Transform)
@@ -548,9 +844,10 @@ interface ParallaxPhotoCardProps {
   item: ArchivalPhoto
   index: number
   onOpen: () => void
+  digicamEnabled: boolean
 }
 
-function ParallaxPhotoCard({ item, index, onOpen }: ParallaxPhotoCardProps) {
+function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhotoCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [offsetY, setOffsetY] = useState(0)
 
@@ -625,6 +922,25 @@ function ParallaxPhotoCard({ item, index, onOpen }: ParallaxPhotoCardProps) {
           {item.badge}
         </div>
 
+        {/* Vintage Digicam REC & Battery indicator */}
+        {digicamEnabled && (
+          <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10 flex items-center gap-1.5 pointer-events-none">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            <span className="text-red-400 font-bold">REC</span>
+            <span className="opacity-40">|</span>
+            <Battery size={11} className="text-emerald-400" />
+          </div>
+        )}
+
+        {/* Digicam Quartz Amber Timestamp */}
+        {digicamEnabled && (
+          <div className="absolute bottom-3 left-3 bg-black/75 px-2 py-0.5 rounded border border-[#ffaa22]/30 z-10 pointer-events-none">
+            <span className="font-mono text-[11px] font-bold tracking-widest text-[#ffaa22] digicam-glow">
+              {item.digicamStamp}
+            </span>
+          </div>
+        )}
+
         {/* Quick View Button */}
         <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300 z-10">
           <span>{item.date}</span>
@@ -664,25 +980,74 @@ export default function App() {
   const [scrollY, setScrollY] = useState(0)
   const [activeSection, setActiveSection] = useState<string>('hero')
 
+  // Award-Winning & Mobile Features State
+  const [isPlayingSound, setIsPlayingSound] = useState(false)
+  const [digicamEnabled, setDigicamEnabled] = useState(true)
+  const [toastMsg, setToastMsg] = useState('')
+  const [toastVisible, setToastVisible] = useState(false)
+
+  // Touch Swipe State for Lightbox Modal
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [touchStartY, setTouchStartY] = useState<number | null>(null)
+  const [touchDeltaX, setTouchDeltaX] = useState<number>(0)
+  const [isSwiping, setIsSwiping] = useState(false)
+
+  const triggerToast = (msg: string) => {
+    setToastMsg(msg)
+    setToastVisible(true)
+    setTimeout(() => {
+      setToastVisible(false)
+    }, 2400)
+  }
+
+  const toggleSound = () => {
+    if (isPlayingSound) {
+      soundEngine.stop()
+      setIsPlayingSound(false)
+      triggerToast('Soundscape paused')
+    } else {
+      const started = soundEngine.start()
+      if (started) {
+        setIsPlayingSound(true)
+        triggerToast('Ambient soundscape active')
+      }
+    }
+  }
+
+  const copyArchiveLink = () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(window.location.href)
+      triggerToast('Archive link copied')
+      soundEngine.playTick()
+    }
+  }
+
   const lightboxPhoto = lightboxIndex !== null ? ARCHIVAL_GALLERY[lightboxIndex] : null
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index)
+    soundEngine.playTick()
   }
 
   const closeLightbox = () => {
     setLightboxIndex(null)
+    setTouchStartX(null)
+    setTouchStartY(null)
+    setTouchDeltaX(0)
+    setIsSwiping(false)
   }
 
   const nextLightbox = () => {
     if (lightboxIndex !== null) {
       setLightboxIndex((lightboxIndex + 1) % ARCHIVAL_GALLERY.length)
+      soundEngine.playTick()
     }
   }
 
   const prevLightbox = () => {
     if (lightboxIndex !== null) {
       setLightboxIndex((lightboxIndex - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length)
+      soundEngine.playTick()
     }
   }
 
@@ -761,8 +1126,10 @@ export default function App() {
       } else if (lightboxIndex !== null) {
         if (e.key === 'ArrowRight') {
           setLightboxIndex((prev) => (prev !== null ? (prev + 1) % ARCHIVAL_GALLERY.length : null))
+          soundEngine.playTick()
         } else if (e.key === 'ArrowLeft') {
           setLightboxIndex((prev) => (prev !== null ? (prev - 1 + ARCHIVAL_GALLERY.length) % ARCHIVAL_GALLERY.length : null))
+          soundEngine.playTick()
         }
       }
     }
@@ -787,6 +1154,7 @@ export default function App() {
     }
     setDrawerOpen(false)
     document.body.style.overflow = ''
+    soundEngine.playTick()
 
     setTimeout(() => {
       const element = document.getElementById(sectionId)
@@ -798,6 +1166,7 @@ export default function App() {
   }
 
   const scrollToTop = () => {
+    soundEngine.playTick()
     window.scrollTo({ top: 0, behavior: 'smooth' })
     window.history.pushState(null, '', '#hero')
   }
@@ -805,6 +1174,7 @@ export default function App() {
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setMessageSubmitted(true)
+    soundEngine.playTick()
   }
 
   const currentSectionMeta = SECTIONS.find((s) => s.id === activeSection) || SECTIONS[0]
@@ -832,21 +1202,40 @@ export default function App() {
       />
 
       {/* =========================================================================
-          4. FLOATING BACK-TO-TOP BUTTON (With Circular SVG Progress Ring)
+          4. FLOATING BACK-TO-TOP BUTTON (Desktop / Tablet, with Progress Ring)
           ========================================================================= */}
-      <BackToTopButton
-        scrollY={scrollY}
-        scrollProgress={scrollProgress}
+      <div className="hidden sm:block">
+        <BackToTopButton
+          scrollY={scrollY}
+          scrollProgress={scrollProgress}
+          onScrollToTop={scrollToTop}
+        />
+      </div>
+
+      {/* =========================================================================
+          5. MOBILE FLOATING BOTTOM BAR (sm:hidden)
+          Award-Winning Native Mobile App Feel with Thumb-Reach Chapter Advance
+          ========================================================================= */}
+      <MobileBottomBar
+        activeSection={activeSection}
+        sections={SECTIONS}
+        onNavigate={handleNavClick}
         onScrollToTop={scrollToTop}
+        scrollProgress={scrollProgress}
       />
+
+      {/* =========================================================================
+          6. TACTILE TOAST NOTIFICATION
+          ========================================================================= */}
+      <ToastNotification message={toastMsg} isVisible={toastVisible} />
 
       {/* =========================================================================
           GLOBAL STICKY HEADER & NAVIGATION
           ========================================================================= */}
       <header
-        className={`fixed top-0 inset-x-0 z-40 transition-all duration-300 px-6 sm:px-12 py-5 sm:py-6 flex items-center justify-between ${
+        className={`fixed top-0 inset-x-0 z-40 transition-all duration-300 px-4 sm:px-12 py-4 sm:py-6 flex items-center justify-between ${
           scrolled
-            ? 'bg-[#0d0d0d]/90 backdrop-blur-md border-b border-[#efeee9]/10 shadow-2xl py-4 sm:py-4'
+            ? 'bg-[#0d0d0d]/90 backdrop-blur-md border-b border-[#efeee9]/10 shadow-2xl py-3.5 sm:py-4'
             : 'bg-transparent'
         }`}
       >
@@ -857,73 +1246,94 @@ export default function App() {
             e.preventDefault()
             handleNavClick('hero')
           }}
-          className="flex items-center gap-3 group focus:outline-none"
+          className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none min-h-[44px]"
         >
           <div className="h-2 w-2 bg-[#efeee9] rounded-full group-hover:scale-150 transition-transform duration-300" />
-          <span className="font-hn text-lg sm:text-xl font-normal tracking-wide text-[#efeee9] group-hover:opacity-70 transition-opacity duration-300">
+          <span className="font-hn text-base sm:text-xl font-normal tracking-wide text-[#efeee9] group-hover:opacity-70 transition-opacity duration-300">
             R Alice Mystica
           </span>
-          <span className="hidden md:inline-block text-[11px] tracking-[0.25em] text-[#efeee9]/40 uppercase font-light pl-2 border-l border-[#efeee9]/20">
+          <span className="hidden xl:inline-block text-[11px] tracking-[0.25em] text-[#efeee9]/40 uppercase font-light pl-2 border-l border-[#efeee9]/20">
             The Creative Archive
           </span>
         </a>
 
-        {/* Section Transition Badge / Chapter Counter in Header */}
-        <div className="hidden md:flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-[#141414]/90 border border-[#efeee9]/15 text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/80 shadow-inner">
+        {/* Live IST Time Clock Badge (Visible on md+) */}
+        <div className="hidden md:flex items-center px-3.5 py-1.5 rounded-full bg-[#141414]/90 border border-[#efeee9]/15 shadow-inner">
+          <LiveTimeClock />
+        </div>
+
+        {/* Section Transition Badge / Chapter Counter in Header (Visible on lg+) */}
+        <div className="hidden lg:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#141414]/90 border border-[#efeee9]/15 text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/80 shadow-inner">
           <span className="w-1.5 h-1.5 rounded-full bg-[#efeee9] animate-pulse" />
-          <span key={activeSection} className="animate-fade-in inline-block">
+          <span key={activeSection} className="anim-fade-in inline-block">
             {currentSectionMeta.number} &bull; {currentSectionMeta.title}
           </span>
         </div>
 
-        {/* Desktop Nav Links with Active State Highlighting */}
-        <nav className="hidden lg:flex items-center gap-7 text-sm font-light tracking-wide">
-          {[
-            { id: 'about', label: 'About' },
-            { id: 'interests', label: 'Interests' },
-            { id: 'archive', label: 'Archive' },
-            { id: 'milestones', label: 'Milestones' },
-            { id: 'philosophy', label: 'Philosophy' },
-          ].map((item) => {
-            const isActive = activeSection === item.id
-            return (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                onClick={(e) => handleNavClick(item.id, e)}
-                className={`relative py-1 transition-colors duration-200 cursor-pointer ${
-                  isActive ? 'text-[#efeee9] font-normal' : 'text-[#efeee9]/60 hover:text-[#efeee9]'
-                }`}
-              >
-                {item.label}
-                {isActive && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#efeee9] rounded-full shadow-[0_0_6px_rgba(239,238,233,0.6)]" />
-                )}
-              </a>
-            )
-          })}
-          <a
-            href="#contact"
-            onClick={(e) => handleNavClick('contact', e)}
-            className={`px-4 py-2 border text-xs uppercase tracking-widest transition-all duration-300 cursor-pointer ${
-              activeSection === 'contact'
-                ? 'bg-[#efeee9] text-black border-[#efeee9]'
-                : 'border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black'
-            }`}
-          >
-            Inquiry
-          </a>
-        </nav>
+        {/* Actions & Desktop Navigation */}
+        <div className="flex items-center gap-2.5 sm:gap-6">
+          {/* Ambient Soundscape Toggle (Visible on all devices!) */}
+          <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
 
-        {/* Mobile Hamburger Button */}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          aria-expanded={drawerOpen}
-          aria-label="Open navigation menu"
-          className="lg:hidden p-2 text-[#efeee9] hover:opacity-70 transition-opacity focus:outline-none cursor-pointer"
-        >
-          <Menu size={24} strokeWidth={1.5} />
-        </button>
+          {/* Share Archive Button */}
+          <button
+            onClick={copyArchiveLink}
+            aria-label="Copy archive portfolio link"
+            title="Share Archive"
+            className="hidden sm:flex p-2 rounded-full border border-[#efeee9]/20 bg-[#141414]/90 text-[#efeee9]/70 hover:text-[#efeee9] hover:border-[#efeee9]/50 transition-all cursor-pointer min-h-[40px] min-w-[40px] items-center justify-center active:scale-95"
+          >
+            <Share2 size={15} />
+          </button>
+
+          {/* Desktop Nav Links */}
+          <nav className="hidden lg:flex items-center gap-6 text-sm font-light tracking-wide">
+            {[
+              { id: 'about', label: 'About' },
+              { id: 'interests', label: 'Interests' },
+              { id: 'archive', label: 'Archive' },
+              { id: 'milestones', label: 'Milestones' },
+              { id: 'philosophy', label: 'Philosophy' },
+            ].map((item) => {
+              const isActive = activeSection === item.id
+              return (
+                <a
+                  key={item.id}
+                  href={`#${item.id}`}
+                  onClick={(e) => handleNavClick(item.id, e)}
+                  className={`relative py-1 transition-colors duration-200 cursor-pointer ${
+                    isActive ? 'text-[#efeee9] font-normal' : 'text-[#efeee9]/60 hover:text-[#efeee9]'
+                  }`}
+                >
+                  {item.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-[#efeee9] rounded-full shadow-[0_0_6px_rgba(239,238,233,0.6)]" />
+                  )}
+                </a>
+              )
+            })}
+            <a
+              href="#contact"
+              onClick={(e) => handleNavClick('contact', e)}
+              className={`px-4 py-2 border text-xs uppercase tracking-widest transition-all duration-300 cursor-pointer ${
+                activeSection === 'contact'
+                  ? 'bg-[#efeee9] text-black border-[#efeee9]'
+                  : 'border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black'
+              }`}
+            >
+              Inquiry
+            </a>
+          </nav>
+
+          {/* Mobile Hamburger Button with 44px tap target */}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-expanded={drawerOpen}
+            aria-label="Open navigation menu"
+            className="lg:hidden p-2 text-[#efeee9] hover:opacity-70 transition-opacity focus:outline-none cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <Menu size={24} strokeWidth={1.5} />
+          </button>
+        </div>
       </header>
 
       {/* =========================================================================
@@ -942,27 +1352,41 @@ export default function App() {
 
         {/* Panel */}
         <div
-          className={`absolute top-0 right-0 h-full w-[85%] max-w-sm bg-[#111111] border-l border-[#efeee9]/15 p-8 flex flex-col justify-between transition-transform duration-500 shadow-2xl ${
+          className={`absolute top-0 right-0 h-full w-[88%] max-w-sm bg-[#111111] border-l border-[#efeee9]/15 p-6 sm:p-8 flex flex-col justify-between transition-transform duration-500 shadow-2xl overflow-y-auto ${
             drawerOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
           <div>
-            {/* Close Button */}
-            <div className="flex items-center justify-between pb-6 border-b border-[#efeee9]/15">
+            {/* Close Button & Header */}
+            <div className="flex items-center justify-between pb-5 border-b border-[#efeee9]/15">
               <span className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 font-mono">
                 Site Navigation
               </span>
               <button
                 onClick={() => setDrawerOpen(false)}
                 aria-label="Close menu"
-                className="text-[#efeee9] p-1 hover:opacity-60 transition-opacity cursor-pointer"
+                className="text-[#efeee9] p-2 hover:opacity-60 transition-opacity cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X size={24} strokeWidth={1.5} />
               </button>
             </div>
 
+            {/* Live IST Time Clock in Mobile Drawer */}
+            <div className="py-4 border-b border-[#efeee9]/10">
+              <LiveTimeClock />
+            </div>
+
+            {/* Ambient Sound in Mobile Drawer */}
+            <div className="py-4 border-b border-[#efeee9]/10 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Music size={16} className="text-[#efeee9]/60" />
+                <span className="text-xs font-mono uppercase text-[#efeee9]/80">Ambience</span>
+              </div>
+              <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
+            </div>
+
             {/* Menu Links with Active Chapter Counter */}
-            <nav className="mt-8 flex flex-col gap-5">
+            <nav className="mt-6 flex flex-col gap-3">
               {SECTIONS.map((link) => {
                 const isActive = activeSection === link.id
                 return (
@@ -970,13 +1394,13 @@ export default function App() {
                     key={link.id}
                     href={`#${link.id}`}
                     onClick={(e) => handleNavClick(link.id, e)}
-                    className={`text-left text-xl sm:text-2xl font-light transition-colors flex items-center justify-between cursor-pointer ${
+                    className={`text-left text-lg sm:text-2xl font-light py-2 px-1 transition-colors flex items-center justify-between cursor-pointer min-h-[44px] ${
                       isActive ? 'text-[#efeee9] font-normal' : 'text-[#efeee9]/60 hover:text-[#efeee9]'
                     }`}
                   >
                     <span>{link.number}. {link.navLabel}</span>
                     {isActive && (
-                      <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9] px-2 py-0.5 border border-[#efeee9]/30">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-[#efeee9] px-2 py-0.5 border border-[#efeee9]/30 rounded">
                         Current
                       </span>
                     )}
@@ -984,6 +1408,18 @@ export default function App() {
                 )
               })}
             </nav>
+
+            {/* Quick Share Link button */}
+            <button
+              onClick={() => {
+                copyArchiveLink()
+                setDrawerOpen(false)
+              }}
+              className="mt-6 w-full py-3 px-4 border border-[#efeee9]/20 bg-white/5 rounded flex items-center justify-center gap-2 text-xs font-mono uppercase tracking-wider text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px]"
+            >
+              <Share2 size={14} />
+              <span>Share Archive Portfolio</span>
+            </button>
           </div>
 
           <div className="pt-6 border-t border-[#efeee9]/15 text-xs text-[#efeee9]/50 space-y-2 font-light">
@@ -1002,7 +1438,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="hero"
-        className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between pt-24 pb-12 px-6 sm:px-12"
+        className="relative min-h-screen w-full overflow-hidden flex flex-col justify-between pt-24 pb-12 px-4 sm:px-12"
       >
         {/* Layer 1: Alice's dramatic red noir photo with Parallax Bleed Translation */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -1021,14 +1457,14 @@ export default function App() {
         <div className="absolute inset-0 bg-radial-gradient pointer-events-none opacity-40" />
 
         {/* Layer 2: Infinite Marquee Typography with Separated Entrance & Scroll Offset */}
-        <div className="relative z-10 my-auto py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee">
+        <div className="relative z-10 my-auto py-8 sm:py-12 overflow-hidden pointer-events-none anim-fade-up delay-marquee">
           <div
             style={{
               transform: `translate3d(${scrollY * -0.15}px, 0, 0)`,
             }}
             className="will-change-transform"
           >
-            <div className="marquee flex w-max whitespace-nowrap font-hn text-[14vh] sm:text-[23vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
+            <div className="marquee flex w-max whitespace-nowrap font-hn text-[10vh] sm:text-[15vh] md:text-[22vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
               <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
               <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
               <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
@@ -1050,15 +1486,26 @@ export default function App() {
             <span className="text-[#efeee9]/70">Visual Storyteller &bull; BBA Scholar &bull; Observer</span>
           </div>
 
-          {/* Centered Scroll Indicator with bounce */}
-          <a
-            href="#about"
-            onClick={(e) => handleNavClick('about', e)}
-            className="mx-auto sm:mx-0 flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer shadow-lg"
-          >
-            <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
-            <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300 animate-bounce" />
-          </a>
+          {/* Centered Scroll Indicator & Share Button */}
+          <div className="flex items-center gap-3 mx-auto sm:mx-0">
+            <a
+              href="#about"
+              onClick={(e) => handleNavClick('about', e)}
+              className="flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer shadow-lg min-h-[44px]"
+            >
+              <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
+              <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300 animate-bounce" />
+            </a>
+
+            <button
+              onClick={copyArchiveLink}
+              title="Copy Archive Link"
+              className="p-2.5 rounded-full border border-[#efeee9]/20 bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center text-[#efeee9]"
+              aria-label="Share Archive Link"
+            >
+              <Share2 size={14} />
+            </button>
+          </div>
 
           <div className="anim-fade-up delay-footer-right text-left sm:text-right flex flex-col gap-0.5">
             <span className="tracking-widest uppercase font-mono text-[11px] text-[#efeee9]/60">Philosophy</span>
@@ -1073,7 +1520,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="about"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Animated Reveal Rule */}
@@ -1178,7 +1625,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="interests"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule */}
@@ -1203,14 +1650,47 @@ export default function App() {
 
           {/* Interactive Category Selector Tabs */}
           <Reveal delay={100}>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+            {/* Mobile: Horizontal Swipeable Pill Track */}
+            <div className="sm:hidden flex overflow-x-auto no-scrollbar gap-2 pb-2 snap-x snap-mandatory -mx-2 px-2">
               {CREATIVE_INTERESTS.map((item, index) => {
                 const IconComponent = item.icon
                 const isSelected = selectedInterest === index
                 return (
                   <button
                     key={item.number}
-                    onClick={() => setSelectedInterest(index)}
+                    onClick={() => {
+                      setSelectedInterest(index)
+                      soundEngine.playTick()
+                    }}
+                    className={`shrink-0 snap-start px-3.5 py-2.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer text-xs min-h-[44px] ${
+                      isSelected
+                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-lg font-medium'
+                        : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
+                    }`}
+                  >
+                    <span className="font-mono text-[10px]">{item.number}</span>
+                    <IconComponent
+                      size={14}
+                      className={isSelected ? 'text-black' : 'text-[#efeee9]/50'}
+                    />
+                    <span className="truncate max-w-[130px]">{item.title}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Desktop / Tablet: 8-Column Grid */}
+            <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+              {CREATIVE_INTERESTS.map((item, index) => {
+                const IconComponent = item.icon
+                const isSelected = selectedInterest === index
+                return (
+                  <button
+                    key={item.number}
+                    onClick={() => {
+                      setSelectedInterest(index)
+                      soundEngine.playTick()
+                    }}
                     className={`p-3.5 text-left border transition-all duration-300 flex flex-col justify-between h-32 group cursor-pointer ${
                       isSelected
                         ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_20px_rgba(239,238,233,0.25)] scale-[1.02]'
@@ -1244,11 +1724,11 @@ export default function App() {
           <Reveal delay={200}>
             <div
               key={selectedInterest}
-              className="p-8 sm:p-12 bg-black/60 border border-[#efeee9]/20 shadow-2xl relative overflow-hidden anim-fade-in"
+              className="p-6 sm:p-12 bg-black/60 border border-[#efeee9]/20 shadow-2xl relative overflow-hidden anim-fade-in"
             >
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
                 <div className="lg:col-span-8 space-y-6">
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                     <span className="px-3 py-1 bg-[#efeee9]/10 text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/80 border border-[#efeee9]/20">
                       Category {CREATIVE_INTERESTS[selectedInterest].number} / 08
                     </span>
@@ -1268,6 +1748,19 @@ export default function App() {
                   <div className="pl-6 border-l-2 border-[#efeee9]/60 italic text-base sm:text-lg text-[#efeee9] py-1 font-serif">
                     &ldquo;{CREATIVE_INTERESTS[selectedInterest].quote}&rdquo;
                   </div>
+
+                  {/* Interactive Ambience Action for 02. Music & Discovery */}
+                  {selectedInterest === 1 && (
+                    <div className="pt-2">
+                      <button
+                        onClick={toggleSound}
+                        className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#efeee9]/30 bg-white/5 hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer text-xs font-mono uppercase tracking-wider min-h-[44px]"
+                      >
+                        <Music size={14} />
+                        <span>{isPlayingSound ? 'Pause Ambient Soundscape' : 'Listen to Ambient Soundscape'}</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Editorial Icon & Visual Card */}
@@ -1335,18 +1828,18 @@ export default function App() {
 
       {/* =========================================================================
           SECTION 03: ARCHIVAL PHOTOGRAPHY & MEMORIES
-          Exclusively showcases the 5 uploaded photos with candid digicam captions
-          and Scroll-driven Parallax Depth on each Exhibition Frame
+          Exclusively showcases the 5 uploaded photos with candid digicam captions,
+          Digicam Timestamp toggle, and Scroll-driven Parallax Depth
           ========================================================================= */}
       <section
         id="archive"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header with Reveal Rule */}
+          {/* Section Header with Reveal Rule & Digicam Toggle */}
           <div className="space-y-4">
             <Reveal delay={0}>
-              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                   <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
                     03 / Visual Chronicle
@@ -1355,9 +1848,28 @@ export default function App() {
                     ARCHIVAL PHOTOGRAPHY &amp; MEMORIES
                   </h2>
                 </div>
-                <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
-                  Candid frames, digicam aesthetics, childhood archives, and nostalgic moments preserved through time.
-                </p>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-sm">
+                    Candid frames, digicam aesthetics, childhood archives, and nostalgic moments preserved through time.
+                  </p>
+                  {/* Digicam Quartz Stamp Toggle Button */}
+                  <button
+                    onClick={() => {
+                      setDigicamEnabled(!digicamEnabled)
+                      soundEngine.playTick()
+                      triggerToast(digicamEnabled ? 'Digicam stamp: OFF' : 'Digicam stamp: ACTIVE')
+                    }}
+                    aria-label="Toggle digicam timestamp overlay"
+                    className={`px-3.5 py-2 rounded-full border text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer min-h-[44px] shrink-0 select-none ${
+                      digicamEnabled
+                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-md font-medium'
+                        : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${digicamEnabled ? 'bg-red-500 animate-pulse' : 'bg-[#efeee9]/40'}`} />
+                    <span>Digicam Quartz: {digicamEnabled ? 'Active' : 'Off'}</span>
+                  </button>
+                </div>
               </div>
             </Reveal>
             <RevealRule delay={150} />
@@ -1375,6 +1887,7 @@ export default function App() {
                   item={item}
                   index={index}
                   onOpen={() => openLightbox(index)}
+                  digicamEnabled={digicamEnabled}
                 />
               </Reveal>
             ))}
@@ -1404,7 +1917,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="milestones"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule */}
@@ -1510,7 +2023,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="philosophy"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule */}
@@ -1573,7 +2086,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="contact"
-        className="relative py-28 px-6 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Section Header with Reveal Rule */}
@@ -1699,7 +2212,7 @@ export default function App() {
       {/* =========================================================================
           GLOBAL EDITORIAL FOOTER
           ========================================================================= */}
-      <footer className="py-20 px-6 sm:px-12 lg:px-20 bg-[#080808] text-[#efeee9] border-t border-[#efeee9]/10">
+      <footer className="py-20 pb-28 sm:pb-20 px-4 sm:px-12 lg:px-20 bg-[#080808] text-[#efeee9] border-t border-[#efeee9]/10">
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-12 border-b border-[#efeee9]/15">
             <div className="space-y-3">
@@ -1712,6 +2225,9 @@ export default function App() {
               <p className="text-sm text-[#efeee9]/70 font-light">
                 BBA Scholar &bull; Creative Archivist &bull; Visual Storyteller &bull; Public Speaker
               </p>
+              <div className="pt-2">
+                <LiveTimeClock />
+              </div>
             </div>
 
             {/* Footer Navigation Columns */}
@@ -1755,67 +2271,144 @@ export default function App() {
           role="dialog"
           aria-modal="true"
           aria-label={lightboxPhoto.title}
-          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 sm:p-10 animate-fade-in"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-10 animate-fade-in"
           onClick={closeLightbox}
         >
           <div
-            className="relative max-w-4xl w-full max-h-[94vh] bg-[#111111] border border-[#efeee9]/20 p-6 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
+            className="relative max-w-4xl w-full max-h-[94vh] bg-[#111111] border border-[#efeee9]/20 p-4 sm:p-8 flex flex-col justify-between shadow-2xl overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Top Bar with Counter and Close Button */}
-            <div className="flex items-center justify-between pb-4 border-b border-[#efeee9]/15">
-              <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9]/60">
-                Frame {lightboxIndex !== null ? `0${lightboxIndex + 1} / 0${ARCHIVAL_GALLERY.length}` : ''} &bull; {lightboxPhoto.tag}
-              </span>
+            <div className="flex items-center justify-between pb-3.5 border-b border-[#efeee9]/15">
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-mono uppercase tracking-widest text-[#efeee9]/70">
+                  Frame {lightboxIndex !== null ? `0${lightboxIndex + 1} / 0${ARCHIVAL_GALLERY.length}` : ''} &bull; {lightboxPhoto.tag}
+                </span>
+                {digicamEnabled && (
+                  <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 border border-[#efeee9]/15 text-[10px] font-mono text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    DIGICAM ON
+                  </span>
+                )}
+              </div>
               <button
                 onClick={closeLightbox}
                 aria-label="Close photo preview"
-                className="text-[#efeee9]/70 hover:text-[#efeee9] p-1.5 transition-colors cursor-pointer"
+                className="text-[#efeee9]/70 hover:text-[#efeee9] p-2 transition-colors cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
               >
                 <X size={24} strokeWidth={1.5} />
               </button>
             </div>
 
-            {/* Modal Image with Navigation Arrows */}
-            <div className="relative w-full max-h-[58vh] overflow-hidden bg-black flex items-center justify-center my-4 group">
-              <img
-                src={lightboxPhoto.image}
-                alt={lightboxPhoto.title}
-                className="max-h-[58vh] max-w-full object-contain"
-              />
+            {/* Modal Image with Touch Swipe Gestures & Parallax Translation */}
+            <div
+              onTouchStart={(e) => {
+                setTouchStartX(e.targetTouches[0].clientX)
+                setTouchStartY(e.targetTouches[0].clientY)
+                setTouchDeltaX(0)
+                setIsSwiping(true)
+              }}
+              onTouchMove={(e) => {
+                if (touchStartX === null) return
+                const currentX = e.targetTouches[0].clientX
+                const deltaX = currentX - touchStartX
+                setTouchDeltaX(Math.max(-120, Math.min(120, deltaX)))
+              }}
+              onTouchEnd={(e) => {
+                if (touchStartX !== null && touchStartY !== null) {
+                  const currentX = e.changedTouches[0].clientX
+                  const currentY = e.changedTouches[0].clientY
+                  const deltaX = currentX - touchStartX
+                  const deltaY = currentY - touchStartY
 
-              {/* Prev Button */}
+                  if (deltaY > 80 && Math.abs(deltaX) < 55) {
+                    closeLightbox()
+                  } else if (deltaX < -40) {
+                    nextLightbox()
+                  } else if (deltaX > 40) {
+                    prevLightbox()
+                  }
+                }
+                setTouchStartX(null)
+                setTouchStartY(null)
+                setTouchDeltaX(0)
+                setIsSwiping(false)
+              }}
+              className="relative w-full max-h-[58vh] overflow-hidden bg-black flex items-center justify-center my-3 sm:my-4 group touch-pan-y select-none"
+            >
+              <div
+                style={{
+                  transform: `translate3d(${touchDeltaX}px, 0, 0)`,
+                  transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)',
+                }}
+                className="relative w-full h-full flex items-center justify-center will-change-transform"
+              >
+                <img
+                  src={lightboxPhoto.image}
+                  alt={lightboxPhoto.title}
+                  className="max-h-[58vh] max-w-full object-contain pointer-events-none"
+                />
+
+                {/* Digicam REC & Battery Overlay in Lightbox */}
+                {digicamEnabled && (
+                  <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10 flex items-center gap-2 pointer-events-none">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-red-400 font-bold">REC ◉</span>
+                    <span className="opacity-40">|</span>
+                    <Battery size={13} className="text-emerald-400" />
+                  </div>
+                )}
+
+                {/* Digicam Vintage Quartz Amber Timestamp */}
+                {digicamEnabled && (
+                  <div className="absolute bottom-3 right-3 bg-black/80 px-3 py-1 rounded border border-[#ffaa22]/30 z-10 pointer-events-none">
+                    <span className="font-mono text-xs sm:text-sm font-bold tracking-widest text-[#ffaa22] digicam-glow">
+                      {lightboxPhoto.digicamStamp}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Prev Button with 44px tap target */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   prevLightbox()
                 }}
                 aria-label="Previous photo"
-                className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+                className="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center active:scale-95 z-20"
               >
                 <ChevronLeft size={22} strokeWidth={1.5} />
               </button>
 
-              {/* Next Button */}
+              {/* Next Button with 44px tap target */}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
                   nextLightbox()
                 }}
                 aria-label="Next photo"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/70 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100 min-h-[44px] min-w-[44px] flex items-center justify-center active:scale-95 z-20"
               >
                 <ChevronRight size={22} strokeWidth={1.5} />
               </button>
             </div>
 
-            {/* Thumbnail Navigation Strip */}
-            <div className="flex items-center justify-center gap-2 pb-4 pt-1 overflow-x-auto">
+            {/* Mobile Swipe Hint */}
+            <div className="sm:hidden text-center text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/50 py-1 select-none">
+              &larr; Swipe left/right &bull; Pull down to close &rarr;
+            </div>
+
+            {/* Thumbnail Navigation Strip with Smooth Snap */}
+            <div className="flex items-center justify-center gap-2 pb-3 pt-1 overflow-x-auto no-scrollbar snap-x snap-mandatory">
               {ARCHIVAL_GALLERY.map((thumb, idx) => (
                 <button
                   key={thumb.id}
-                  onClick={() => setLightboxIndex(idx)}
-                  className={`h-12 w-16 shrink-0 overflow-hidden border transition-all cursor-pointer ${
+                  onClick={() => {
+                    setLightboxIndex(idx)
+                    soundEngine.playTick()
+                  }}
+                  className={`h-12 w-16 shrink-0 snap-center overflow-hidden border transition-all cursor-pointer min-h-[44px] ${
                     lightboxIndex === idx
                       ? 'border-[#efeee9] opacity-100 scale-105 shadow-md'
                       : 'border-[#efeee9]/20 opacity-50 hover:opacity-85'
@@ -1828,13 +2421,13 @@ export default function App() {
             </div>
 
             {/* Metadata Footer */}
-            <div className="pt-4 border-t border-[#efeee9]/15 space-y-2">
+            <div className="pt-3.5 border-t border-[#efeee9]/15 space-y-1.5">
               <div className="flex items-center justify-between text-xs font-mono uppercase tracking-widest text-[#efeee9]/50">
                 <span>{lightboxPhoto.badge}</span>
                 <span>{lightboxPhoto.date}</span>
               </div>
-              <h3 className="text-2xl font-light text-[#efeee9]">{lightboxPhoto.title}</h3>
-              <p className="text-sm text-[#efeee9]/80 font-light leading-relaxed">
+              <h3 className="text-xl sm:text-2xl font-light text-[#efeee9]">{lightboxPhoto.title}</h3>
+              <p className="text-xs sm:text-sm text-[#efeee9]/80 font-light leading-relaxed">
                 {lightboxPhoto.caption}
               </p>
             </div>
