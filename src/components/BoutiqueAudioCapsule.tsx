@@ -25,15 +25,16 @@ export function BoutiqueAudioCapsule({
   onTogglePlay,
   onPlayTick,
 }: BoutiqueAudioCapsuleProps) {
-  const [volume, setVolume] = useState<number>(18) // 18% default minimal classy volume
+  const [volume, setVolume] = useState<number>(55) // Rich, punchy 55% default volume
   const [isExpanded, setIsExpanded] = useState<boolean>(false)
   const [isMuted, setIsMuted] = useState<boolean>(false)
-  const [prevVolume, setPrevVolume] = useState<number>(18)
+  const [prevVolume, setPrevVolume] = useState<number>(55)
   const [eqLevels, setEqLevels] = useState<EqualizerLevels>({
-    bar1: 0.15,
-    bar2: 0.25,
-    bar3: 0.2,
-    bar4: 0.15,
+    bar1: 0.18,
+    bar2: 0.28,
+    bar3: 0.22,
+    bar4: 0.18,
+    beatIntensity: 0.2,
   })
 
   // Poll real-time equalizer levels when playing
@@ -73,7 +74,7 @@ export function BoutiqueAudioCapsule({
     onPlayTick?.()
     if (isMuted) {
       setIsMuted(false)
-      const restored = prevVolume > 0 ? prevVolume : 18
+      const restored = prevVolume > 0 ? prevVolume : 55
       setVolume(restored)
       boutiqueSoundEngine.setVolume(restored / 100)
     } else {

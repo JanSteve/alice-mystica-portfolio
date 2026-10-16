@@ -27,7 +27,10 @@ import {
   ZoomIn,
   ZoomOut,
   Info,
-  ChevronDown
+  ChevronDown,
+  Disc3,
+  Play,
+  Pause
 } from 'lucide-react'
 
 import { MagneticButton } from './components/MagneticButton'
@@ -345,12 +348,12 @@ function AudioToggle({
   return (
     <button
       onClick={onToggle}
-      aria-label={isPlaying ? 'Pause All The Stars boutique audio' : 'Play All The Stars boutique audio'}
-      title="Kendrick Lamar & SZA — All The Stars [Curated Boutique Mix]"
+      aria-label={isPlaying ? 'Pause All The Stars theme audio' : 'Play All The Stars website theme'}
+      title="Kendrick Lamar & SZA — All The Stars [Black Panther Website Theme]"
       className={`px-3 py-1.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer font-mono tracking-wider uppercase select-none min-h-[40px] ${
         isPlaying
-          ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_15px_rgba(239,238,233,0.3)] font-medium'
-          : 'bg-[#141414]/90 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
+          ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_18px_rgba(239,238,233,0.35)] font-medium scale-[1.02]'
+          : 'bg-[#141414]/90 text-[#efeee9]/80 border-[#efeee9]/25 hover:border-[#ffaa22]/60 hover:text-[#efeee9]'
       }`}
     >
       {isPlaying ? (
@@ -361,10 +364,13 @@ function AudioToggle({
           <span className="w-[2px] bg-black rounded-full anim-bar-4" />
         </div>
       ) : (
-        <VolumeX size={14} className="opacity-60" />
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ffaa22] animate-pulse" />
+          <Volume2 size={13} className="opacity-70" />
+        </div>
       )}
       <span className="text-[10px] hidden xs:inline-block sm:inline-block">
-        {isPlaying ? 'All The Stars' : 'Sound'}
+        {isPlaying ? 'All The Stars' : 'Play Theme'}
       </span>
     </button>
   )
@@ -1083,6 +1089,8 @@ export default function App() {
 
   // Award-Winning & Mobile Features State
   const [isPlayingSound, setIsPlayingSound] = useState(false)
+  const [showThemeBanner, setShowThemeBanner] = useState(true)
+  const hasUserPausedRef = useRef<boolean>(false)
   const [digicamEnabled, setDigicamEnabled] = useState(true)
   const [toastMsg, setToastMsg] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
@@ -1096,6 +1104,44 @@ export default function App() {
     }
     return 'noir'
   })
+
+  // Global one-time interaction listener for modern browser autoplay policies (pointerdown/touchstart/click/keydown)
+  useEffect(() => {
+    const handleFirstGesture = (e: Event) => {
+      if (hasUserPausedRef.current) return
+      const target = e.target as HTMLElement | null
+      if (target?.closest('[data-no-auto-play="true"]')) return
+
+      try {
+        const ctx = soundEngine.getAudioContext()
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume().catch(() => {})
+        }
+        if (!soundEngine.isPlaying && !hasUserPausedRef.current) {
+          const ok = soundEngine.start()
+          if (ok) {
+            setIsPlayingSound(true)
+            setShowThemeBanner(false)
+            triggerToast('✦ Theme Playing: All The Stars [Black Panther OST]')
+          }
+        }
+      } catch {}
+    }
+
+    const events = ['pointerdown', 'touchstart', 'click', 'keydown']
+    const onGesture = (e: Event) => {
+      handleFirstGesture(e)
+      if (soundEngine.isPlaying) {
+        events.forEach((evt) => window.removeEventListener(evt, onGesture))
+      }
+    }
+
+    events.forEach((evt) => window.addEventListener(evt, onGesture, { passive: true }))
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, onGesture))
+    }
+  }, [])
 
   // Synchronize document theme attribute with state
   useEffect(() => {
@@ -1139,14 +1185,43 @@ export default function App() {
     if (isPlayingSound) {
       soundEngine.stop()
       setIsPlayingSound(false)
-      triggerToast('All The Stars [Boutique Mix] paused')
+      hasUserPausedRef.current = true
+      triggerToast('All The Stars [Theme] paused')
     } else {
+      hasUserPausedRef.current = false
+      setShowThemeBanner(false)
+      const ctx = soundEngine.getAudioContext()
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
       const started = soundEngine.start()
       if (started) {
         setIsPlayingSound(true)
-        triggerToast('Playing: All The Stars [Curated Boutique Mix]')
+        triggerToast('Playing: All The Stars [Black Panther Theme]')
       }
     }
+  }
+
+  const handleStartThemeBanner = () => {
+    soundEngine.playTick()
+    hasUserPausedRef.current = false
+    setShowThemeBanner(false)
+    const ctx = soundEngine.getAudioContext()
+    if (ctx && ctx.state === 'suspended') {
+      ctx.resume().catch(() => {})
+    }
+    const started = soundEngine.start()
+    if (started) {
+      setIsPlayingSound(true)
+      triggerToast('Playing: All The Stars [Black Panther Theme]')
+    }
+  }
+
+  const handleDismissThemeBanner = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    soundEngine.playTick()
+    setShowThemeBanner(false)
+    hasUserPausedRef.current = true
   }
 
   const copyArchiveLink = () => {
@@ -1462,6 +1537,71 @@ export default function App() {
       />
 
       {/* =========================================================================
+          9. FLOATING "SOUND ON / PLAY THEME" INVITATION BANNER
+          Gentle pulsing invitation inviting visitor into the theme if not yet playing
+          ========================================================================= */}
+      {!isPlayingSound && showThemeBanner && (
+        <div
+          role="complementary"
+          aria-label="Play website theme invitation"
+          className="fixed top-20 right-3 sm:top-24 sm:right-6 z-40 max-w-[calc(100vw-1.5rem)] sm:max-w-sm anim-fade-down"
+        >
+          <div
+            onClick={handleStartThemeBanner}
+            className="group relative p-3 sm:px-4 sm:py-3 rounded-2xl bg-[#111111]/95 hover:bg-[#161616] border border-[#ffaa22]/40 hover:border-[#ffaa22] shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(255,170,34,0.25)] backdrop-blur-xl transition-all duration-300 flex items-center justify-between gap-3 cursor-pointer"
+          >
+            {/* Left disc & badge */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative h-10 w-10 rounded-full bg-gradient-to-tr from-[#1a1a1a] via-[#2d2d2d] to-[#ffaa22]/30 border border-[#ffaa22]/60 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                <Disc3 size={18} className="text-[#ffaa22] animate-spin" style={{ animationDuration: '8s' }} />
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse border-2 border-[#111111]" />
+              </div>
+
+              <div className="flex flex-col text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[9px] font-mono uppercase tracking-widest text-[#ffaa22] font-semibold">
+                    Website Theme
+                  </span>
+                  <span className="text-[8px] font-mono text-[#efeee9]/40 tracking-wider">
+                    Bb Maj &bull; 97 BPM
+                  </span>
+                </div>
+                <span className="text-xs font-normal text-[#efeee9] truncate">
+                  All The Stars &bull; SZA &amp; Kendrick
+                </span>
+                <span className="text-[10px] text-[#efeee9]/60 font-light truncate">
+                  Tap to play curated Black Panther mix
+                </span>
+              </div>
+            </div>
+
+            {/* Play Button + Close Dismiss */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleStartThemeBanner}
+                aria-label="Play All The Stars theme"
+                className="px-3 py-1.5 rounded-full bg-[#efeee9] hover:bg-white text-black font-mono text-[10px] font-semibold uppercase tracking-wider flex items-center gap-1 shadow-md hover:scale-105 transition-all cursor-pointer min-h-[36px]"
+              >
+                <Play size={11} fill="currentColor" />
+                <span>Play</span>
+              </button>
+              <button
+                type="button"
+                data-no-auto-play="true"
+                onClick={handleDismissThemeBanner}
+                aria-label="Dismiss theme banner"
+                title="Dismiss"
+                className="p-1 text-[#efeee9]/40 hover:text-[#efeee9] hover:bg-white/10 rounded-full transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
           GLOBAL STICKY HEADER & NAVIGATION
           ========================================================================= */}
       <header
@@ -1730,11 +1870,83 @@ export default function App() {
             }}
             className="will-change-transform"
           >
-            <div className="marquee flex w-max whitespace-nowrap font-hn text-[10vh] sm:text-[15vh] md:text-[22vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none">
+            <div className={`marquee flex w-max whitespace-nowrap font-hn text-[10vh] sm:text-[15vh] md:text-[22vh] leading-none text-[#efeee9] tracking-tighter opacity-90 select-none transition-all duration-700 ${
+              isPlayingSound ? 'drop-shadow-[0_0_35px_rgba(255,170,34,0.25)]' : ''
+            }`}>
               <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
               <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
               <span className="pr-[5vw]">Alice &mdash; Mystica&nbsp;</span>
               <span className="pr-[5vw] text-[#efeee9]/60 font-light">The Creative Archive&nbsp;</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Layer 2.5: Website Signature Theme Showcase */}
+        <div className="relative z-10 my-4 sm:my-6 flex justify-center anim-fade-up">
+          <div
+            onClick={toggleSound}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                toggleSound()
+              }
+            }}
+            aria-label={isPlayingSound ? 'Pause website theme' : 'Play website theme'}
+            className={`group inline-flex items-center gap-3.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full border backdrop-blur-xl transition-all duration-300 cursor-pointer shadow-2xl select-none ${
+              isPlayingSound
+                ? 'bg-black/85 border-[#ffaa22]/60 shadow-[0_0_35px_rgba(255,170,34,0.25)] scale-[1.02]'
+                : 'bg-black/60 border-[#efeee9]/25 hover:border-[#ffaa22]/50 hover:bg-black/80'
+            }`}
+          >
+            {/* Spinning Gold Disc or Play Icon */}
+            <div
+              className={`h-8 w-8 rounded-full flex items-center justify-center shrink-0 transition-transform ${
+                isPlayingSound
+                  ? 'bg-[#ffaa22] text-black shadow-md'
+                  : 'bg-white/10 text-[#efeee9] group-hover:bg-[#ffaa22] group-hover:text-black group-hover:scale-105'
+              }`}
+            >
+              {isPlayingSound ? (
+                <Disc3 size={17} className="animate-spin" style={{ animationDuration: '4s' }} />
+              ) : (
+                <Play size={13} fill="currentColor" className="ml-0.5" />
+              )}
+            </div>
+
+            <div className="flex flex-col text-left">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[9px] uppercase tracking-widest text-[#ffaa22] font-semibold flex items-center gap-1.5">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPlayingSound ? 'bg-emerald-400 animate-pulse' : 'bg-[#ffaa22]'}`} />
+                  Website Theme
+                </span>
+                <span className="font-mono text-[9px] text-[#efeee9]/50 tracking-wider hidden xs:inline">
+                  Black Panther OST &bull; 97 BPM
+                </span>
+              </div>
+              <span className="text-xs sm:text-sm font-normal text-[#efeee9] flex items-center gap-2">
+                <span>All The Stars &bull; Kendrick Lamar &amp; SZA</span>
+                <span className="text-[10px] font-mono text-[#ffaa22] bg-[#ffaa22]/10 px-1.5 py-0.2 rounded border border-[#ffaa22]/30">
+                  Bb Maj
+                </span>
+              </span>
+            </div>
+
+            {/* Equalizer Visualizer Bars */}
+            <div className="flex items-end gap-[3px] h-4 w-5 justify-center pl-2 border-l border-[#efeee9]/20">
+              <span
+                className={`w-[2.5px] rounded-full transition-all duration-75 ${isPlayingSound ? 'bg-[#ffaa22] anim-bar-1' : 'bg-[#efeee9]/30 h-1'}`}
+              />
+              <span
+                className={`w-[2.5px] rounded-full transition-all duration-75 ${isPlayingSound ? 'bg-[#ffaa22] anim-bar-2' : 'bg-[#efeee9]/30 h-1'}`}
+              />
+              <span
+                className={`w-[2.5px] rounded-full transition-all duration-75 ${isPlayingSound ? 'bg-[#ffaa22] anim-bar-3' : 'bg-[#efeee9]/30 h-1'}`}
+              />
+              <span
+                className={`w-[2.5px] rounded-full transition-all duration-75 ${isPlayingSound ? 'bg-[#ffaa22] anim-bar-4' : 'bg-[#efeee9]/30 h-1'}`}
+              />
             </div>
           </div>
         </div>
