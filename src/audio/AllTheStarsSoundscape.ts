@@ -129,6 +129,7 @@ export class AllTheStarsBoutiqueSynthesizer {
   private boutiqueFilter: BiquadFilterNode | null = null
   private analyser: AnalyserNode | null = null
   private noiseBuffer: AudioBuffer | null = null
+  private spatialDelayNodes: AudioNode[] = []
 
   // State
   public isPlaying = false
@@ -138,13 +139,11 @@ export class AllTheStarsBoutiqueSynthesizer {
 
   // Scheduler
   private schedulerTimer: ReturnType<typeof setInterval> | null = null
+  private stopCleanupTimer: ReturnType<typeof setTimeout> | null = null
   private currentStep = 0
   private nextStepTime = 0
   private lookaheadMs = 45
-  private scheduleAheadSec = 0.14
-
-  // Active pad oscillators for crossfading
-  private activePadNodes: { oscs: OscillatorNode[]; gains: GainNode[] }[] = []
+  private scheduleAheadSec = 0.16
 
   private getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null
@@ -155,7 +154,7 @@ export class AllTheStarsBoutiqueSynthesizer {
         this.ctx = new AudioCtx()
       }
       if (this.ctx.state === 'suspended') {
-        this.ctx.resume()
+        this.ctx.resume().catch(() => {})
       }
       return this.ctx
     } catch {
@@ -190,24 +189,36 @@ export class AllTheStarsBoutiqueSynthesizer {
 
   public start(): boolean {
     if (this.isPlaying) return true
+
+    // Clear any pending cleanup timer from a previous stop() call to prevent cut-off race condition
+    if (this.stopCleanupTimer) {
+      clearTimeout(this.stopCleanupTimer)
+      this.stopCleanupTimer = null
+    }
+
     const ctx = this.getAudioContext()
     if (!ctx) return false
 
     try {
+      // Resume if suspended by browser autoplay policy
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
+
       const now = ctx.currentTime
 
       // 1. Analyser for real-time live equalizer visualization
       this.analyser = ctx.createAnalyser()
       this.analyser.fftSize = 64
-      this.analyser.smoothingTimeConstant = 0.8
+      this.analyser.smoothingTimeConstant = 0.82
 
       // 2. Master Gain Node with gentle boutique fade-in
       this.masterGain = ctx.createGain()
-      this.masterGain.gain.setValueAtTime(0.0001, now)
-      this.masterGain.gain.exponentialRampToValueAtTime(this.volume, now + 1.2)
+      this.masterGain.gain.setValueAtTime(0, now)
+      this.masterGain.gain.linearRampToValueAtTime(this.volume, now + 1.1)
 
       // 3. High-End Boutique Acoustic Biquad Filter (Warm roll-off at 3400Hz)
-      // Produces the velvety luxury store ambience (Aesop / Dover Street Market)
+      // Produces the velvety luxury store ambience (Aesop / Dover Street Market / Colette)
       this.boutiqueFilter = ctx.createBiquadFilter()
       this.boutiqueFilter.type = 'lowpass'
       this.boutiqueFilter.frequency.setValueAtTime(3400, now)
@@ -220,9 +231,9 @@ export class AllTheStarsBoutiqueSynthesizer {
       delayR.delayTime.setValueAtTime(0.076, now)
 
       const feedbackL = ctx.createGain()
-      feedbackL.gain.setValueAtTime(0.16, now)
+      feedbackL.gain.setValueAtTime(0.15, now)
       const feedbackR = ctx.createGain()
-      feedbackR.gain.setValueAtTime(0.14, now)
+      feedbackR.gain.setValueAtTime(0.13, now)
 
       const delayFilter = ctx.createBiquadFilter()
       delayFilter.type = 'lowpass'
@@ -237,6 +248,9 @@ export class AllTheStarsBoutiqueSynthesizer {
       delayFilter.connect(feedbackR)
       feedbackL.connect(delayL)
       feedbackR.connect(delayR)
+
+      // Track spatial nodes for clean disconnection
+      this.spatialDelayNodes = [delayL, delayR, feedbackL, feedbackR, delayFilter]
 
       // Mix direct + reflected room sound into Master Gain
       this.boutiqueFilter.connect(this.masterGain)
@@ -263,38 +277,36 @@ export class AllTheStarsBoutiqueSynthesizer {
   }
 
   public stop(): boolean {
-    if (!this.isPlaying || !this.masterGain || !this.ctx) {
-      this.isPlaying = false
+    if (!this.isPlaying) {
       return false
+    }
+
+    this.isPlaying = false
+
+    // Immediately halt scheduling so no new notes/chords are enqueued
+    if (this.schedulerTimer) {
+      clearInterval(this.schedulerTimer)
+      this.schedulerTimer = null
+    }
+
+    if (!this.masterGain || !this.ctx) {
+      return true
     }
 
     try {
       const now = this.ctx.currentTime
-      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now)
-      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8)
+      const currentGain = Math.max(0, this.masterGain.gain.value)
+      this.masterGain.gain.setValueAtTime(currentGain, now)
+      this.masterGain.gain.linearRampToValueAtTime(0, now + 0.6)
 
-      this.isPlaying = false
-
-      if (this.schedulerTimer) {
-        clearInterval(this.schedulerTimer)
-        this.schedulerTimer = null
-      }
-
-      setTimeout(() => {
-        this.activePadNodes.forEach(({ oscs, gains }) => {
-          oscs.forEach((osc) => {
-            try {
-              osc.stop()
-              osc.disconnect()
-            } catch {}
-          })
-          gains.forEach((g) => {
-            try {
-              g.disconnect()
-            } catch {}
-          })
+      // Delayed full node cleanup with timer tracking to prevent race condition
+      this.stopCleanupTimer = setTimeout(() => {
+        this.spatialDelayNodes.forEach((node) => {
+          try {
+            node.disconnect()
+          } catch {}
         })
-        this.activePadNodes = []
+        this.spatialDelayNodes = []
 
         if (this.boutiqueFilter) {
           try {
@@ -308,11 +320,11 @@ export class AllTheStarsBoutiqueSynthesizer {
           } catch {}
           this.masterGain = null
         }
-      }, 850)
+        this.stopCleanupTimer = null
+      }, 700)
 
       return true
     } catch {
-      this.isPlaying = false
       return false
     }
   }
@@ -331,32 +343,44 @@ export class AllTheStarsBoutiqueSynthesizer {
   private scheduleStep(step: number, time: number) {
     if (!this.ctx || !this.boutiqueFilter) return
 
+    const stepInMeasure = step % 16
+    const measureIndex = Math.floor(step / 16)
+
     // 1. Chords & Bass Trigger on Measure Boundaries (Steps 0, 16, 32, 48, 64, 80, 96, 112)
-    if (step % 16 === 0) {
-      const measureIndex = Math.floor(step / 16)
+    if (stepInMeasure === 0) {
       this.scheduleChordAndBass(measureIndex, time)
     }
 
-    // 2. Melody Notes (SZA "All The Stars" chorus)
+    // 2. SZA Chorus Melody ("All The Stars")
     const melodyEvents = ALL_THE_STARS_MELODY.filter((evt) => evt.step === step)
     melodyEvents.forEach((evt) => {
       this.scheduleMelodyNote(evt.freq, time, evt.duration, evt.velocity || 1)
     })
 
-    // 3. Boutique Soft Hi-Hat Ticks (on eighth notes: steps 0, 2, 4, 6, 8, 10, 12, 14...)
-    if (step % 2 === 0) {
-      const isOffbeat = step % 4 !== 0
-      this.scheduleBoutiqueHiHat(time, isOffbeat ? 0.016 : 0.011)
+    // 3. Signature Syncopated Warm Boutique Kick ("All The Stars" rhythmic bounce)
+    // Beat 1 (step 0), Beat 2-and (step 6), and Beat 3-and (step 10)
+    if (stepInMeasure === 0) {
+      this.scheduleBoutiqueKick(time, true)
+    } else if (stepInMeasure === 6) {
+      this.scheduleBoutiqueKick(time, false)
+    } else if (stepInMeasure === 10 && (measureIndex % 2 === 1)) {
+      // Syncopated kick push on alternate measures
+      this.scheduleBoutiqueKick(time, false)
     }
 
-    // 4. Muted Boutique Rim / Snare Snap on Beats 2 & 4 (Steps 4 & 12 of each measure)
-    const stepInMeasure = step % 16
+    // 4. Boutique Soft Hi-Hat Ticks (on eighth notes: steps 0, 2, 4, 6, 8, 10, 12, 14)
+    if (step % 2 === 0) {
+      const isOffbeat = step % 4 !== 0
+      this.scheduleBoutiqueHiHat(time, isOffbeat ? 0.015 : 0.010)
+    }
+
+    // 5. Muted Boutique Rimshot / Snare Snap on Beats 2 & 4 (Steps 4 & 12 of each measure)
     if (stepInMeasure === 4 || stepInMeasure === 12) {
       this.scheduleBoutiqueRimshot(time)
     }
   }
 
-  // Synthesizes the warm analog pad chords and sub-bass
+  // Synthesizes the warm analog pad chords and deep sub-bass
   private scheduleChordAndBass(measureIndex: number, time: number) {
     if (!this.ctx || !this.boutiqueFilter) return
     const ctx = this.ctx
@@ -376,26 +400,52 @@ export class AllTheStarsBoutiqueSynthesizer {
 
     const chord = chordTypes[measureIndex % 4]
 
-    // A. Sub-Bass (Kendrick Lamar deep warmth)
+    // A. Sub-Bass + Mid-Harmonic Bass (Audible on both headphones & phone/laptop speakers)
     try {
-      const bassOsc = ctx.createOscillator()
+      const subOsc = ctx.createOscillator()
+      const warmOsc = ctx.createOscillator()
       const bassGain = ctx.createGain()
-      bassOsc.type = 'sine'
-      bassOsc.frequency.setValueAtTime(chord.sub, time)
+      const bassFilter = ctx.createBiquadFilter()
+
+      subOsc.type = 'sine'
+      subOsc.frequency.setValueAtTime(chord.sub, time)
+
+      warmOsc.type = 'triangle'
+      warmOsc.frequency.setValueAtTime(chord.sub, time)
+
+      bassFilter.type = 'lowpass'
+      bassFilter.frequency.setValueAtTime(260, time)
+
+      const subGain = ctx.createGain()
+      const warmGain = ctx.createGain()
+      subGain.gain.setValueAtTime(0.7, time)
+      warmGain.gain.setValueAtTime(0.3, time)
 
       // Bass envelope: smooth attack & sustain
-      bassGain.gain.setValueAtTime(0.0001, time)
-      bassGain.gain.linearRampToValueAtTime(0.14, time + 0.12)
-      bassGain.gain.exponentialRampToValueAtTime(0.0001, time + chordDuration - 0.05)
+      bassGain.gain.setValueAtTime(0, time)
+      bassGain.gain.linearRampToValueAtTime(0.12, time + 0.12)
+      bassGain.gain.linearRampToValueAtTime(0.10, time + chordDuration - 0.1)
+      bassGain.gain.linearRampToValueAtTime(0, time + chordDuration)
 
-      bassOsc.connect(bassGain)
+      subOsc.connect(subGain)
+      warmOsc.connect(warmGain)
+      subGain.connect(bassFilter)
+      warmGain.connect(bassFilter)
+      bassFilter.connect(bassGain)
       bassGain.connect(this.boutiqueFilter)
-      bassOsc.start(time)
-      bassOsc.stop(time + chordDuration)
+
+      subOsc.start(time)
+      warmOsc.start(time)
+      subOsc.stop(time + chordDuration)
+      warmOsc.stop(time + chordDuration)
 
       setTimeout(() => {
         try {
-          bassOsc.disconnect()
+          subOsc.disconnect()
+          warmOsc.disconnect()
+          subGain.disconnect()
+          warmGain.disconnect()
+          bassFilter.disconnect()
           bassGain.disconnect()
         } catch {}
       }, (time - ctx.currentTime + chordDuration + 0.1) * 1000)
@@ -414,10 +464,10 @@ export class AllTheStarsBoutiqueSynthesizer {
       padFilter.frequency.linearRampToValueAtTime(650, time + chordDuration)
 
       const masterPadGain = ctx.createGain()
-      masterPadGain.gain.setValueAtTime(0.0001, time)
+      masterPadGain.gain.setValueAtTime(0, time)
       masterPadGain.gain.linearRampToValueAtTime(0.065, time + 0.35)
       masterPadGain.gain.setValueAtTime(0.065, time + chordDuration - 0.4)
-      masterPadGain.gain.linearRampToValueAtTime(0.0001, time + chordDuration)
+      masterPadGain.gain.linearRampToValueAtTime(0, time + chordDuration)
 
       masterPadGain.connect(padFilter)
       padFilter.connect(this.boutiqueFilter)
@@ -437,7 +487,7 @@ export class AllTheStarsBoutiqueSynthesizer {
         osc1.detune.setValueAtTime(-5.5 + idx * 1.5, time)
         osc2.detune.setValueAtTime(5.5 - idx * 1.5, time)
 
-        voiceGain.gain.setValueAtTime(0.28, time)
+        voiceGain.gain.setValueAtTime(0.26, time)
 
         osc1.connect(voiceGain)
         osc2.connect(voiceGain)
@@ -495,12 +545,15 @@ export class AllTheStarsBoutiqueSynthesizer {
       overtoneGain.gain.setValueAtTime(0.18, time)
       chimeGain.gain.setValueAtTime(0.06, time)
 
-      // Tactile Bell Envelope
-      const peakAmp = 0.095 * velocity
-      noteGain.gain.setValueAtTime(0.0001, time)
-      noteGain.gain.linearRampToValueAtTime(peakAmp, time + 0.006)
-      noteGain.gain.exponentialRampToValueAtTime(peakAmp * 0.35, time + 0.15)
-      noteGain.gain.exponentialRampToValueAtTime(0.0001, time + duration)
+      // Strictly monotonic tactile bell envelope
+      const peakAmp = 0.092 * velocity
+      const attackTime = 0.008
+      const decayTime = Math.min(0.12, duration * 0.4)
+
+      noteGain.gain.setValueAtTime(0, time)
+      noteGain.gain.linearRampToValueAtTime(peakAmp, time + attackTime)
+      noteGain.gain.linearRampToValueAtTime(peakAmp * 0.35, time + attackTime + decayTime)
+      noteGain.gain.linearRampToValueAtTime(0, time + duration)
 
       fundamental.connect(noteGain)
       overtone.connect(overtoneGain)
@@ -514,18 +567,61 @@ export class AllTheStarsBoutiqueSynthesizer {
       overtone.start(time)
       bellChime.start(time)
 
-      fundamental.stop(time + duration + 0.05)
-      overtone.stop(time + duration + 0.05)
-      bellChime.stop(time + duration + 0.05)
+      fundamental.stop(time + duration + 0.02)
+      overtone.stop(time + duration + 0.02)
+      bellChime.stop(time + duration + 0.02)
 
       setTimeout(() => {
         try {
           fundamental.disconnect()
           overtone.disconnect()
           bellChime.disconnect()
+          overtoneGain.disconnect()
+          chimeGain.disconnect()
           noteGain.disconnect()
         } catch {}
       }, (time - ctx.currentTime + duration + 0.1) * 1000)
+    } catch {}
+  }
+
+  // Soft Boutique Warm Kick Pulse (Syncopated "All The Stars" signature bounce)
+  private scheduleBoutiqueKick(time: number, accent = false) {
+    if (!this.ctx || !this.boutiqueFilter) return
+    const ctx = this.ctx
+
+    try {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      const kickFilter = ctx.createBiquadFilter()
+
+      osc.type = 'sine'
+      // Warm pitch drop from 72Hz down to 42Hz
+      osc.frequency.setValueAtTime(74, time)
+      osc.frequency.exponentialRampToValueAtTime(42, time + 0.08)
+
+      // Pillowy boutique low-pass roll-off so it never clicks harshly
+      kickFilter.type = 'lowpass'
+      kickFilter.frequency.setValueAtTime(160, time)
+
+      const peak = accent ? 0.085 : 0.065
+      gain.gain.setValueAtTime(0, time)
+      gain.gain.linearRampToValueAtTime(peak, time + 0.012)
+      gain.gain.linearRampToValueAtTime(0, time + 0.12)
+
+      osc.connect(kickFilter)
+      kickFilter.connect(gain)
+      gain.connect(this.boutiqueFilter)
+
+      osc.start(time)
+      osc.stop(time + 0.13)
+
+      setTimeout(() => {
+        try {
+          osc.disconnect()
+          kickFilter.disconnect()
+          gain.disconnect()
+        } catch {}
+      }, (time - ctx.currentTime + 0.15) * 1000)
     } catch {}
   }
 
@@ -546,7 +642,7 @@ export class AllTheStarsBoutiqueSynthesizer {
 
       const hatGain = ctx.createGain()
       hatGain.gain.setValueAtTime(amplitude, time)
-      hatGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.024)
+      hatGain.gain.linearRampToValueAtTime(0, time + 0.024)
 
       noiseSource.connect(bandpass)
       bandpass.connect(hatGain)
@@ -578,7 +674,7 @@ export class AllTheStarsBoutiqueSynthesizer {
       toneOsc.frequency.exponentialRampToValueAtTime(90, time + 0.038)
 
       toneGain.gain.setValueAtTime(0.035, time)
-      toneGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.04)
+      toneGain.gain.linearRampToValueAtTime(0, time + 0.04)
 
       toneOsc.connect(toneGain)
       toneGain.connect(this.boutiqueFilter)
@@ -598,7 +694,7 @@ export class AllTheStarsBoutiqueSynthesizer {
 
       const snapGain = ctx.createGain()
       snapGain.gain.setValueAtTime(0.025, time)
-      snapGain.gain.exponentialRampToValueAtTime(0.0001, time + 0.035)
+      snapGain.gain.linearRampToValueAtTime(0, time + 0.035)
 
       snapSource.connect(snapFilter)
       snapFilter.connect(snapGain)
@@ -654,7 +750,7 @@ export class AllTheStarsBoutiqueSynthesizer {
       osc.frequency.setValueAtTime(840, now)
       osc.frequency.exponentialRampToValueAtTime(320, now + 0.028)
       gain.gain.setValueAtTime(0.025, now)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.028)
+      gain.gain.linearRampToValueAtTime(0, now + 0.028)
       osc.connect(gain)
       gain.connect(ctx.destination)
       osc.start(now)

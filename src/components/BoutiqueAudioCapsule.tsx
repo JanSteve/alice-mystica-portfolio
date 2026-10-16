@@ -49,6 +49,16 @@ export function BoutiqueAudioCapsule({
     return () => cancelAnimationFrame(animId)
   }, [isPlaying])
 
+  // Close expanded capsule on Escape key
+  useEffect(() => {
+    if (!isExpanded) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsExpanded(false)
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [isExpanded])
+
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10)
     setVolume(val)
@@ -83,7 +93,7 @@ export function BoutiqueAudioCapsule({
       <div
         className={`transition-all duration-400 ease-out border backdrop-blur-xl shadow-2xl rounded-2xl overflow-hidden ${
           isExpanded
-            ? 'w-[calc(100vw-1.5rem)] sm:w-[360px] bg-[#0f0f0f]/95 border-[#efeee9]/25 p-4'
+            ? 'w-[calc(100vw-1.5rem)] sm:w-[360px] max-h-[85vh] overflow-y-auto bg-[#0f0f0f]/95 border-[#efeee9]/25 p-4'
             : 'w-auto bg-[#111111]/90 hover:bg-[#141414]/95 border-[#efeee9]/20 hover:border-[#efeee9]/40 p-2 sm:px-3 sm:py-2.5 rounded-full'
         }`}
       >

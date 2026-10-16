@@ -358,4 +358,32 @@ body, div, section, header, footer, aside, button, nav {
   color: #f7f6f2 !important;
 }
 
+[data-theme="linen"] input::placeholder,
+[data-theme="linen"] textarea::placeholder {
+  color: rgba(22, 22, 22, 0.45) !important;
+}
+
+[data-theme="linen"] select {
+  background-color: #eeebe3 !important;
+  color: #161616 !important;
+  border-color: rgba(22, 22, 22, 0.2) !important;
+}
+
+[data-theme="linen"] option {
+  background-color: #f7f6f2 !important;
+  color: #161616 !important;
+}
+
+[data-theme="linen"] .bg-\[\#080808\],
+[data-theme="linen"] .bg-\[\#080808\]\/90,
+[data-theme="linen"] .bg-\[\#0a0a0a\],
+[data-theme="linen"] .bg-\[\#0c0c0c\],
+[data-theme="linen"] .bg-\[\#0c0c0c\]\/85 {
+  background-color: #f1efe8 !important;
+}
+
+[data-theme="linen"] .text-white\/\[0\.03\] {
+  color: rgba(22, 22, 22, 0.05) !important;
+}
+
 

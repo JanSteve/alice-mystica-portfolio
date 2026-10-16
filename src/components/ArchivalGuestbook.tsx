@@ -142,6 +142,7 @@ export function ArchivalGuestbook({
 
     const updated = [newEntry, ...entries]
     setEntries(updated)
+    setActiveTab('All') // Switch to All tab so new submission is visible immediately
     try {
       localStorage.setItem('alice_archive_guestbook_notes', JSON.stringify(updated))
     } catch {}
@@ -170,7 +171,7 @@ export function ArchivalGuestbook({
     <section
       id="guestbook"
       aria-label="Archival Guestbook and Endorsements"
-      className="w-full py-24 sm:py-32 px-4 sm:px-12 border-t border-[#efeee9]/15 relative bg-[#0e0e0e]"
+      className="w-full py-24 sm:py-32 px-4 sm:px-12 border-t border-[#efeee9]/15 relative bg-[#0e0e0e] scroll-mt-24"
     >
       <div className="max-w-6xl mx-auto space-y-12 sm:space-y-16">
         {/* Header & Section Title */}

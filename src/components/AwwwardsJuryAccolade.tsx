@@ -105,11 +105,35 @@ export function AwwwardsJuryAccolade({
 
   const copyAccreditation = () => {
     onPlayTick?.()
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText("AWWWARDS SITE OF THE DAY • Score 9.82/10 • Alice Mystica — The Creative Archive (Ref: AWW-2026-ALICE-ARC-SOTD)")
+    const text = "AWWWARDS SITE OF THE DAY • Score 9.82/10 • Alice Mystica — The Creative Archive (Ref: AWW-2026-ALICE-ARC-SOTD)"
+    
+    const handleSuccess = () => {
       setCopied(true)
       onTriggerToast?.("Awwwards Certificate copied to clipboard")
       setTimeout(() => setCopied(false), 2400)
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(handleSuccess).catch(() => {
+        fallbackCopy(text)
+      })
+    } else {
+      fallbackCopy(text)
+    }
+
+    function fallbackCopy(val: string) {
+      try {
+        const textArea = document.createElement("textarea")
+        textArea.value = val
+        textArea.style.position = "fixed"
+        textArea.style.left = "-999999px"
+        document.body.appendChild(textArea)
+        textArea.focus()
+        textArea.select()
+        document.execCommand("copy")
+        document.body.removeChild(textArea)
+        handleSuccess()
+      } catch {}
     }
   }
 

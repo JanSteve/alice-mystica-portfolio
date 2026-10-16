@@ -1267,7 +1267,7 @@ export default function App() {
           if (currentY < 120) {
             setActiveSection('hero')
           } else if (window.innerHeight + currentY >= document.documentElement.scrollHeight - 60) {
-            setActiveSection('contact')
+            setActiveSection(SECTIONS[SECTIONS.length - 1].id)
           } else {
             const scrollPosition = currentY + 220
             for (const section of [...SECTIONS].reverse()) {
@@ -1294,9 +1294,9 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
-  // Lock scroll only when drawer or lightbox is open
+  // Lock scroll only when drawer, lightbox, or jury evaluation drawer is open
   useEffect(() => {
-    if (drawerOpen || lightboxIndex !== null) {
+    if (drawerOpen || lightboxIndex !== null || juryDrawerOpen) {
       document.body.style.overflow = 'hidden'
     } else {
       document.body.style.overflow = ''
@@ -1304,7 +1304,7 @@ export default function App() {
     return () => {
       document.body.style.overflow = ''
     }
-  }, [drawerOpen, lightboxIndex])
+  }, [drawerOpen, lightboxIndex, juryDrawerOpen])
 
   // Close lightbox/drawer on Escape key & arrow keys navigation
   useEffect(() => {
