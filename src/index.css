@@ -266,3 +266,96 @@ body {
   box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.95), 0 0 35px rgba(239, 238, 233, 0.18);
 }
 
+/* =========================================================================
+   EDITORIAL ATMOSPHERE MODES: NOIR MIDNIGHT & EDITORIAL NEWSPRINT / LINEN
+   ========================================================================= */
+
+body, div, section, header, footer, aside, button, nav {
+  transition: background-color 0.4s ease, border-color 0.3s ease;
+}
+
+[data-theme="linen"] {
+  --color-cream: #161616;
+}
+
+[data-theme="linen"] body {
+  background-color: #f7f6f2 !important;
+  color: #161616 !important;
+}
+
+[data-theme="linen"] .bg-\[\#0d0d0d\],
+[data-theme="linen"] .bg-\[\#0e0e0e\],
+[data-theme="linen"] .bg-\[\#0f0f0f\] {
+  background-color: #f7f6f2 !important;
+}
+
+[data-theme="linen"] .bg-\[\#101010\],
+[data-theme="linen"] .bg-\[\#101010\]\/95,
+[data-theme="linen"] .bg-\[\#111111\],
+[data-theme="linen"] .bg-\[\#111111\]\/90,
+[data-theme="linen"] .bg-\[\#121212\],
+[data-theme="linen"] .bg-\[\#121212\]\/90,
+[data-theme="linen"] .bg-\[\#121212\]\/95,
+[data-theme="linen"] .bg-\[\#141414\],
+[data-theme="linen"] .bg-\[\#141414\]\/90,
+[data-theme="linen"] .bg-\[\#161616\] {
+  background-color: #eeebe3 !important;
+}
+
+[data-theme="linen"] .text-\[\#efeee9\] {
+  color: #161616 !important;
+}
+
+[data-theme="linen"] .text-\[\#efeee9\]\/90,
+[data-theme="linen"] .text-\[\#efeee9\]\/80,
+[data-theme="linen"] .text-\[\#efeee9\]\/75,
+[data-theme="linen"] .text-\[\#efeee9\]\/70 {
+  color: rgba(22, 22, 22, 0.78) !important;
+}
+
+[data-theme="linen"] .text-\[\#efeee9\]\/60,
+[data-theme="linen"] .text-\[\#efeee9\]\/50,
+[data-theme="linen"] .text-\[\#efeee9\]\/40 {
+  color: rgba(22, 22, 22, 0.52) !important;
+}
+
+[data-theme="linen"] .border-\[\#efeee9\]\/10,
+[data-theme="linen"] .border-\[\#efeee9\]\/15,
+[data-theme="linen"] .border-\[\#efeee9\]\/20,
+[data-theme="linen"] .border-\[\#efeee9\]\/25 {
+  border-color: rgba(22, 22, 22, 0.16) !important;
+}
+
+[data-theme="linen"] .border-\[\#efeee9\]\/30,
+[data-theme="linen"] .border-\[\#efeee9\]\/40,
+[data-theme="linen"] .border-\[\#efeee9\]\/50 {
+  border-color: rgba(22, 22, 22, 0.32) !important;
+}
+
+[data-theme="linen"] header {
+  background-color: rgba(247, 246, 242, 0.94) !important;
+  border-bottom-color: rgba(22, 22, 22, 0.12) !important;
+}
+
+[data-theme="linen"] .bg-black\/50,
+[data-theme="linen"] .bg-black\/40,
+[data-theme="linen"] .bg-black\/60,
+[data-theme="linen"] .bg-black\/70 {
+  background-color: rgba(228, 224, 215, 0.7) !important;
+}
+
+[data-theme="linen"] .bg-white\/5,
+[data-theme="linen"] .bg-white\/10 {
+  background-color: rgba(22, 22, 22, 0.05) !important;
+}
+
+[data-theme="linen"] .bg-white\/20 {
+  background-color: rgba(22, 22, 22, 0.1) !important;
+}
+
+[data-theme="linen"] .bg-\[\#efeee9\] {
+  background-color: #161616 !important;
+  color: #f7f6f2 !important;
+}
+
+

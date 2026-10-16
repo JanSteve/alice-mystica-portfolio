@@ -34,6 +34,10 @@ import { MagneticButton } from './components/MagneticButton'
 import { ScrollStoppingInterests } from './components/ScrollStoppingInterests'
 import { InteractiveArchivalDesk } from './components/InteractiveArchivalDesk'
 import { CinematicVlogPlayer } from './components/CinematicVlogPlayer'
+import { boutiqueSoundEngine } from './audio/AllTheStarsSoundscape'
+import { BoutiqueAudioCapsule } from './components/BoutiqueAudioCapsule'
+import { AwwwardsJuryAccolade } from './components/AwwwardsJuryAccolade'
+import { ArchivalGuestbook } from './components/ArchivalGuestbook'
 
 // =========================================================================
 // R ALICE MYSTICA — THE CREATIVE ARCHIVE
@@ -259,6 +263,7 @@ const SECTIONS: SectionItem[] = [
   { id: 'milestones', number: '04', title: 'Recognition & Honors', navLabel: 'Milestones' },
   { id: 'philosophy', number: '05', title: 'Perspective & Vision', navLabel: 'Philosophy' },
   { id: 'contact', number: '06', title: 'Inquiry & Dialogue', navLabel: 'Inquiry' },
+  { id: 'guestbook', number: '07', title: 'Critique & Community', navLabel: 'Guestbook' },
 ]
 
 // Dynamic Chapter Ambient Tinting: subtle lighting shifts smoothly as user traverses chapters
@@ -270,169 +275,15 @@ const AMBIENT_CHAPTER_GRADIENTS: Record<string, string> = {
   milestones: 'radial-gradient(circle at 40% 50%, rgba(234, 179, 8, 0.20) 0%, rgba(234, 179, 8, 0.04) 45%, transparent 72%)',
   philosophy: 'radial-gradient(circle at 60% 55%, rgba(168, 85, 247, 0.20) 0%, rgba(168, 85, 247, 0.04) 45%, transparent 72%)',
   contact: 'radial-gradient(circle at 50% 65%, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.05) 45%, transparent 72%)',
+  guestbook: 'radial-gradient(circle at 50% 60%, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0.05) 45%, transparent 72%)',
 }
 
 // =========================================================================
-// AMBIENT SOUNDSCAPE ENGINE (Web Audio API Synthesizer)
-// Reflecting Interest 02: Music & Discovery — Zero External Assets
+// BOUTIQUE AUDIO SYNTHESIS: "ALL THE STARS" (KENDRICK LAMAR & SZA)
+// Web Audio API Synthesizer with luxury boutique acoustics (Aesop/Dover St)
 // =========================================================================
 
-class SoundscapeController {
-  private ctx: AudioContext | null = null
-  private ambientGain: GainNode | null = null
-  private oscillators: OscillatorNode[] = []
-  private filter: BiquadFilterNode | null = null
-  private lfo: OscillatorNode | null = null
-  private lfoGain: GainNode | null = null
-  private stopTimer: ReturnType<typeof setTimeout> | null = null
-  public isPlaying = false
-
-  private getAudioContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null
-    try {
-      if (!this.ctx || this.ctx.state === 'closed') {
-        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-        if (!AudioCtx) return null
-        this.ctx = new AudioCtx()
-      }
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume()
-      }
-      return this.ctx
-    } catch {
-      return null
-    }
-  }
-
-  public start(): boolean {
-    if (this.isPlaying) return true
-    const ctx = this.getAudioContext()
-    if (!ctx) return false
-
-    if (this.stopTimer) {
-      clearTimeout(this.stopTimer)
-      this.stopTimer = null
-    }
-
-    try {
-      const now = ctx.currentTime
-
-      // Warm analog low-pass filter
-      this.filter = ctx.createBiquadFilter()
-      this.filter.type = 'lowpass'
-      this.filter.frequency.setValueAtTime(360, now)
-
-      // Slow organic LFO modulating filter frequency for a breathing ambient texture
-      this.lfo = ctx.createOscillator()
-      this.lfoGain = ctx.createGain()
-      this.lfo.type = 'sine'
-      this.lfo.frequency.setValueAtTime(0.12, now) // ~8.3-second breath cycle
-      this.lfoGain.gain.setValueAtTime(50, now) // subtle +/- 50Hz warmth
-      this.lfo.connect(this.lfoGain)
-      this.lfoGain.connect(this.filter.frequency)
-      this.lfo.start(now)
-
-      // Ambient gain node with gentle fade-in
-      this.ambientGain = ctx.createGain()
-      this.ambientGain.gain.setValueAtTime(0.0001, now)
-      this.ambientGain.gain.exponentialRampToValueAtTime(0.042, now + 1.6)
-
-      // Pentatonic warm open chord: D3 (146.83Hz), A3 (220.0Hz), D4 (293.66Hz), F#4 (369.99Hz)
-      const frequencies = [146.83, 220.00, 293.66, 369.99]
-      this.oscillators = frequencies.map((freq, idx) => {
-        const osc = ctx.createOscillator()
-        osc.type = idx % 2 === 0 ? 'sine' : 'triangle'
-        osc.frequency.setValueAtTime(freq, now)
-        osc.detune.setValueAtTime((idx - 1.5) * 4.5, now)
-
-        const oscGain = ctx.createGain()
-        oscGain.gain.setValueAtTime(0.24, now)
-
-        osc.connect(oscGain)
-        oscGain.connect(this.filter!)
-        osc.start(now)
-        return osc
-      })
-
-      this.filter.connect(this.ambientGain)
-      this.ambientGain.connect(ctx.destination)
-      this.isPlaying = true
-      return true
-    } catch {
-      this.isPlaying = false
-      return false
-    }
-  }
-
-  public stop(): boolean {
-    if (!this.isPlaying || !this.ambientGain || !this.ctx) {
-      this.isPlaying = false
-      return false
-    }
-    try {
-      const now = this.ctx.currentTime
-      this.ambientGain.gain.setValueAtTime(this.ambientGain.gain.value, now)
-      this.ambientGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8)
-
-      this.isPlaying = false
-
-      this.stopTimer = setTimeout(() => {
-        this.oscillators.forEach(osc => {
-          try {
-            osc.stop()
-            osc.disconnect()
-          } catch {}
-        })
-        this.oscillators = []
-        if (this.lfo) {
-          try {
-            this.lfo.stop()
-            this.lfo.disconnect()
-          } catch {}
-          this.lfo = null
-        }
-        if (this.filter) {
-          try { this.filter.disconnect() } catch {}
-          this.filter = null
-        }
-        this.ambientGain = null
-        this.stopTimer = null
-      }, 850)
-
-      return true
-    } catch {
-      this.isPlaying = false
-      return false
-    }
-  }
-
-  public playTick() {
-    const ctx = this.getAudioContext()
-    if (!ctx) return
-    try {
-      const now = ctx.currentTime
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(820, now)
-      osc.frequency.exponentialRampToValueAtTime(340, now + 0.032)
-      gain.gain.setValueAtTime(0.02, now)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.032)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start(now)
-      osc.stop(now + 0.035)
-      setTimeout(() => {
-        try {
-          osc.disconnect()
-          gain.disconnect()
-        } catch {}
-      }, 50)
-    } catch {}
-  }
-}
-
-const soundEngine = new SoundscapeController()
+const soundEngine = boutiqueSoundEngine
 
 // =========================================================================
 // LIVE TIME CLOCK (IST • UTC+5:30)
@@ -494,7 +345,8 @@ function AudioToggle({
   return (
     <button
       onClick={onToggle}
-      aria-label={isPlaying ? 'Mute ambient soundscape' : 'Play ambient soundscape'}
+      aria-label={isPlaying ? 'Pause All The Stars boutique audio' : 'Play All The Stars boutique audio'}
+      title="Kendrick Lamar & SZA — All The Stars [Curated Boutique Mix]"
       className={`px-3 py-1.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer font-mono tracking-wider uppercase select-none min-h-[40px] ${
         isPlaying
           ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_15px_rgba(239,238,233,0.3)] font-medium'
@@ -512,7 +364,37 @@ function AudioToggle({
         <VolumeX size={14} className="opacity-60" />
       )}
       <span className="text-[10px] hidden xs:inline-block sm:inline-block">
-        {isPlaying ? 'Ambience' : 'Sound'}
+        {isPlaying ? 'All The Stars' : 'Sound'}
+      </span>
+    </button>
+  )
+}
+
+// =========================================================================
+// EDITORIAL ATMOSPHERE TOGGLE (Noir Midnight vs Editorial Linen Warmth)
+// =========================================================================
+
+function AtmosphereToggle({
+  atmosphere,
+  onToggle,
+}: {
+  atmosphere: 'noir' | 'linen'
+  onToggle: () => void
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={`Switch atmosphere to ${atmosphere === 'noir' ? 'Editorial Newsprint Linen' : 'Noir Midnight'}`}
+      title={atmosphere === 'noir' ? 'Switch to Editorial Linen Warmth' : 'Switch to Noir Midnight'}
+      className="px-3 py-1.5 rounded-full border border-[#efeee9]/20 hover:border-[#efeee9]/50 bg-[#141414]/90 text-[#efeee9]/80 hover:text-[#efeee9] transition-all flex items-center gap-2 cursor-pointer min-h-[40px] font-mono text-[10px] uppercase tracking-wider select-none active:scale-95"
+    >
+      <span
+        className={`w-2 h-2 rounded-full ${
+          atmosphere === 'noir' ? 'bg-amber-400' : 'bg-indigo-400'
+        }`}
+      />
+      <span className="hidden xs:inline">
+        {atmosphere === 'noir' ? 'Linen' : 'Noir'}
       </span>
     </button>
   )
@@ -547,12 +429,18 @@ function MobileBottomBar({
   onNavigate,
   onScrollToTop,
   scrollProgress,
+  onOpenJuryDrawer,
+  atmosphere,
+  onToggleAtmosphere,
 }: {
   activeSection: string
   sections: SectionItem[]
   onNavigate: (id: string) => void
   onScrollToTop: () => void
   scrollProgress: number
+  onOpenJuryDrawer: () => void
+  atmosphere: 'noir' | 'linen'
+  onToggleAtmosphere: () => void
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const currentMeta = sections.find((s) => s.id === activeSection) || sections[0]
@@ -584,6 +472,31 @@ function MobileBottomBar({
                 aria-label="Close chapter menu"
               >
                 <X size={18} />
+              </button>
+            </div>
+
+            {/* Atmosphere & Jury Quick Action Controls */}
+            <div className="flex items-center gap-2 pt-1 pb-1">
+              <button
+                onClick={() => {
+                  onToggleAtmosphere()
+                  soundEngine.playTick()
+                }}
+                className="flex-1 py-2 px-3 rounded-lg border border-[#efeee9]/15 bg-white/5 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 min-h-[44px] active:scale-95 transition-all cursor-pointer"
+              >
+                <span className={`w-2 h-2 rounded-full ${atmosphere === 'noir' ? 'bg-amber-400' : 'bg-indigo-400'}`} />
+                <span>Mode: {atmosphere === 'noir' ? 'Linen Warmth' : 'Noir'}</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setSheetOpen(false)
+                  onOpenJuryDrawer()
+                  soundEngine.playTick()
+                }}
+                className="py-2 px-3 rounded-lg border border-[#ffaa22]/30 bg-[#ffaa22]/15 text-[#ffaa22] font-mono text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 min-h-[44px] active:scale-95 transition-all cursor-pointer"
+              >
+                <span>★ SOTD 9.82</span>
               </button>
             </div>
 
@@ -1173,6 +1086,36 @@ export default function App() {
   const [digicamEnabled, setDigicamEnabled] = useState(true)
   const [toastMsg, setToastMsg] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
+  const [juryDrawerOpen, setJuryDrawerOpen] = useState(false)
+  const [atmosphere, setAtmosphere] = useState<'noir' | 'linen'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('alice_archive_atmosphere')
+        if (saved === 'noir' || saved === 'linen') return saved
+      } catch {}
+    }
+    return 'noir'
+  })
+
+  // Synchronize document theme attribute with state
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', atmosphere)
+    }
+  }, [atmosphere])
+
+  const toggleAtmosphere = () => {
+    const next = atmosphere === 'noir' ? 'linen' : 'noir'
+    setAtmosphere(next)
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', next)
+    }
+    try {
+      localStorage.setItem('alice_archive_atmosphere', next)
+    } catch {}
+    soundEngine.playTick()
+    triggerToast(next === 'linen' ? 'Editorial Newsprint Linen Mode' : 'Noir Midnight Mode')
+  }
 
   // Touch Swipe State for Lightbox Modal
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
@@ -1196,12 +1139,12 @@ export default function App() {
     if (isPlayingSound) {
       soundEngine.stop()
       setIsPlayingSound(false)
-      triggerToast('Soundscape paused')
+      triggerToast('All The Stars [Boutique Mix] paused')
     } else {
       const started = soundEngine.start()
       if (started) {
         setIsPlayingSound(true)
-        triggerToast('Ambient soundscape active')
+        triggerToast('Playing: All The Stars [Curated Boutique Mix]')
       }
     }
   }
@@ -1486,12 +1429,37 @@ export default function App() {
         onNavigate={handleNavClick}
         onScrollToTop={scrollToTop}
         scrollProgress={scrollProgress}
+        onOpenJuryDrawer={() => setJuryDrawerOpen(true)}
+        atmosphere={atmosphere}
+        onToggleAtmosphere={toggleAtmosphere}
       />
 
       {/* =========================================================================
           6. TACTILE TOAST NOTIFICATION
           ========================================================================= */}
       <ToastNotification message={toastMsg} isVisible={toastVisible} />
+
+      {/* =========================================================================
+          7. AWWWARDS OFFICIAL JURY EVALUATION & ACCOLADE BADGE
+          ========================================================================= */}
+      <AwwwardsJuryAccolade
+        isOpen={juryDrawerOpen}
+        onOpen={() => setJuryDrawerOpen(true)}
+        onClose={() => setJuryDrawerOpen(false)}
+        onNavigateToGuestbook={() => handleNavClick('guestbook')}
+        onPlayTick={() => soundEngine.playTick()}
+        onTriggerToast={triggerToast}
+      />
+
+      {/* =========================================================================
+          8. INTERACTIVE BOUTIQUE AUDIO CAPSULE ("ALL THE STARS")
+          Curated Black Panther OST boutique mix with volume & equalizer
+          ========================================================================= */}
+      <BoutiqueAudioCapsule
+        isPlaying={isPlayingSound}
+        onTogglePlay={toggleSound}
+        onPlayTick={() => soundEngine.playTick()}
+      />
 
       {/* =========================================================================
           GLOBAL STICKY HEADER & NAVIGATION
@@ -1535,8 +1503,13 @@ export default function App() {
         </div>
 
         {/* Actions & Desktop Navigation */}
-        <div className="flex items-center gap-2.5 sm:gap-6">
-          {/* Ambient Soundscape Toggle (Visible on all devices!) */}
+        <div className="flex items-center gap-2 sm:gap-4 lg:gap-5">
+          {/* Atmosphere Mode Switcher */}
+          <MagneticButton strength={0.25}>
+            <AtmosphereToggle atmosphere={atmosphere} onToggle={toggleAtmosphere} />
+          </MagneticButton>
+
+          {/* All The Stars Boutique Audio Toggle (Visible on all devices!) */}
           <MagneticButton strength={0.25}>
             <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
           </MagneticButton>
@@ -1554,13 +1527,14 @@ export default function App() {
           </MagneticButton>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden lg:flex items-center gap-6 text-sm font-light tracking-wide">
+          <nav className="hidden lg:flex items-center gap-5 text-sm font-light tracking-wide">
             {[
               { id: 'about', label: 'About' },
               { id: 'interests', label: 'Interests' },
               { id: 'archive', label: 'Archive' },
               { id: 'milestones', label: 'Milestones' },
               { id: 'philosophy', label: 'Philosophy' },
+              { id: 'guestbook', label: 'Guestbook' },
             ].map((item) => {
               const isActive = activeSection === item.id
               return (
@@ -1654,6 +1628,28 @@ export default function App() {
               </div>
               <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
             </div>
+
+            {/* Atmosphere Mode in Mobile Drawer */}
+            <div className="py-3 border-b border-[#efeee9]/10 flex items-center justify-between gap-3">
+              <span className="text-xs font-mono uppercase text-[#efeee9]/80">Atmosphere</span>
+              <AtmosphereToggle atmosphere={atmosphere} onToggle={toggleAtmosphere} />
+            </div>
+
+            {/* Awwwards SOTD Trigger in Mobile Drawer */}
+            <button
+              onClick={() => {
+                setDrawerOpen(false)
+                setJuryDrawerOpen(true)
+                soundEngine.playTick()
+              }}
+              className="mt-3 w-full py-2.5 px-3 border border-[#ffaa22]/30 bg-[#ffaa22]/10 rounded flex items-center justify-between text-xs font-mono uppercase tracking-wider text-[#ffaa22] hover:bg-[#ffaa22]/20 transition-all cursor-pointer min-h-[44px]"
+            >
+              <div className="flex items-center gap-2">
+                <Award size={14} />
+                <span>Awwwards Jury Verdict</span>
+              </div>
+              <span className="font-semibold">★ 9.82 / 10</span>
+            </button>
 
             {/* Menu Links with Active Chapter Counter */}
             <nav className="mt-6 flex flex-col gap-3">
@@ -2385,6 +2381,16 @@ export default function App() {
       </section>
 
       {/* =========================================================================
+          SECTION 07: ARCHIVAL GUESTBOOK & ENDORSEMENTS
+          A luxury guestbook section allowing visitors and judges to leave signature
+          notes/endorsements that appear live in the archive.
+          ========================================================================= */}
+      <ArchivalGuestbook
+        onPlayTick={() => soundEngine.playTick()}
+        onTriggerToast={triggerToast}
+      />
+
+      {/* =========================================================================
           GLOBAL EDITORIAL FOOTER
           ========================================================================= */}
       <footer className="py-20 pb-28 sm:pb-20 px-4 sm:px-12 lg:px-20 bg-[#080808]/90 backdrop-blur-md text-[#efeee9] border-t border-[#efeee9]/10">
@@ -2418,6 +2424,7 @@ export default function App() {
                 <a href="#archive" onClick={(e) => handleNavClick('archive', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Archival</a>
                 <a href="#milestones" onClick={(e) => handleNavClick('milestones', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Milestones</a>
                 <a href="#philosophy" onClick={(e) => handleNavClick('philosophy', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Philosophy</a>
+                <a href="#guestbook" onClick={(e) => handleNavClick('guestbook', e)} className="text-left hover:text-[#efeee9] transition-colors cursor-pointer">Guestbook</a>
               </div>
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-[#efeee9]/40 tracking-widest">Connect</span>

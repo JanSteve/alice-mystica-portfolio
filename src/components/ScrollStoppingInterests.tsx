@@ -298,7 +298,7 @@ export function ScrollStoppingInterests({
                         className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-indigo-400/40 bg-indigo-500/10 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer text-xs font-mono uppercase tracking-wider"
                       >
                         <Volume2 size={13} className="text-indigo-400" />
-                        <span>{isPlayingSound ? 'Pause Ambient Soundscape' : 'Listen to Soundscape'}</span>
+                        <span>{isPlayingSound ? 'Pause All The Stars [Boutique Mix]' : 'Play All The Stars [Boutique Mix]'}</span>
                       </button>
                     )}
 
