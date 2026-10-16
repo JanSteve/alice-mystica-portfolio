@@ -38,7 +38,7 @@ export function ScrollStoppingInterests({
   const [progress, setProgress] = useState(0)
   const [maxTranslate, setMaxTranslate] = useState(0)
   const [activeCardIndex, setActiveCardIndex] = useState(0)
-  const touchStartRef = useRef<number | null>(null)
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null)
 
   // Measure max horizontal translate distance
   const updateMetrics = () => {
@@ -53,6 +53,13 @@ export function ScrollStoppingInterests({
   useEffect(() => {
     updateMetrics()
     window.addEventListener('resize', updateMetrics)
+
+    const resizeObserver = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => updateMetrics())
+      : null
+
+    if (trackRef.current && resizeObserver) resizeObserver.observe(trackRef.current)
+    if (containerRef.current && resizeObserver) resizeObserver.observe(containerRef.current)
 
     let ticking = false
     const handleScroll = () => {
@@ -86,6 +93,7 @@ export function ScrollStoppingInterests({
     return () => {
       window.removeEventListener('resize', updateMetrics)
       window.removeEventListener('scroll', handleScroll)
+      if (resizeObserver) resizeObserver.disconnect()
     }
   }, [interests.length])
 
@@ -94,9 +102,11 @@ export function ScrollStoppingInterests({
     onPlayTick()
     const container = containerRef.current
     if (!container) return
+    const containerRect = container.getBoundingClientRect()
+    const containerTop = window.scrollY + containerRect.top
     const totalScrollable = container.offsetHeight - window.innerHeight
     const targetProgress = index / (interests.length - 1)
-    const targetScrollY = container.offsetTop + targetProgress * totalScrollable
+    const targetScrollY = containerTop + targetProgress * totalScrollable
     window.scrollTo({
       top: targetScrollY,
       behavior: 'smooth',
@@ -111,10 +121,10 @@ export function ScrollStoppingInterests({
   return (
     <div
       ref={containerRef}
-      className="relative h-[360vh] sm:h-[420vh] bg-[#0c0c0c] border-b border-[#efeee9]/10"
+      className="relative h-[360vh] sm:h-[420vh] bg-transparent border-b border-[#efeee9]/10"
     >
       {/* Sticky Viewport-Locked Frame */}
-      <div className="sticky top-0 h-screen w-full overflow-hidden flex flex-col justify-between py-5 sm:py-7 px-4 sm:px-10 lg:px-16 bg-[#0c0c0c]">
+      <div className="sticky top-0 h-screen h-[100dvh] w-full overflow-hidden flex flex-col justify-between py-5 sm:py-7 px-4 sm:px-10 lg:px-16 bg-[#0c0c0c]/85 backdrop-blur-xs">
         {/* Top Header: Badge, Title, Real-time Card Counter & Progress Scrub Bar */}
         <div className="space-y-3 z-10 shrink-0">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-3">
@@ -203,15 +213,21 @@ export function ScrollStoppingInterests({
         <div
           className="relative w-full overflow-visible my-auto py-2"
           onTouchStart={(e) => {
-            touchStartRef.current = e.touches[0].clientX
+            touchStartPos.current = {
+              x: e.touches[0].clientX,
+              y: e.touches[0].clientY,
+            }
           }}
           onTouchEnd={(e) => {
-            if (touchStartRef.current !== null) {
-              const deltaX = e.changedTouches[0].clientX - touchStartRef.current
-              if (deltaX < -50) stepCard(1)
-              else if (deltaX > 50) stepCard(-1)
+            if (touchStartPos.current !== null) {
+              const deltaX = e.changedTouches[0].clientX - touchStartPos.current.x
+              const deltaY = e.changedTouches[0].clientY - touchStartPos.current.y
+              if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 45) {
+                if (deltaX < 0) stepCard(1)
+                else stepCard(-1)
+              }
             }
-            touchStartRef.current = null
+            touchStartPos.current = null
           }}
         >
           <div

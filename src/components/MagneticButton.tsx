@@ -15,7 +15,7 @@ export function MagneticButton({
   strength = 0.28,
   onClick,
   ariaLabel,
-  role = 'button',
+  role,
 }: MagneticButtonProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
@@ -45,29 +45,37 @@ export function MagneticButton({
     setOffset({ x: 0, y: 0 })
   }
 
+  const isInteractive = Boolean(onClick)
+
   return (
     <div
       ref={ref}
-      role={role}
-      aria-label={ariaLabel}
-      tabIndex={0}
+      role={isInteractive ? (role || 'button') : undefined}
+      aria-label={isInteractive ? ariaLabel : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={onClick}
-      onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && onClick) {
-          e.preventDefault()
-          onClick(e as unknown as React.MouseEvent<HTMLDivElement>)
-        }
-      }}
+      onKeyDown={
+        isInteractive
+          ? (e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && onClick) {
+                e.preventDefault()
+                onClick(e as unknown as React.MouseEvent<HTMLDivElement>)
+              }
+            }
+          : undefined
+      }
       style={{
         transform: `translate3d(${offset.x.toFixed(2)}px, ${offset.y.toFixed(2)}px, 0)`,
         transition: isHovered
           ? 'transform 0.12s cubic-bezier(0.2, 0, 0, 1)'
           : 'transform 0.6s cubic-bezier(0.2, 1, 0.3, 1)',
       }}
-      className={`inline-block will-change-transform cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[#efeee9] ${className}`}
+      className={`inline-block will-change-transform ${
+        isInteractive ? 'cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[#efeee9]' : ''
+      } ${className}`}
     >
       {children}
     </div>

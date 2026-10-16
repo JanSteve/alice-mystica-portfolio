@@ -263,13 +263,13 @@ const SECTIONS: SectionItem[] = [
 
 // Dynamic Chapter Ambient Tinting: subtle lighting shifts smoothly as user traverses chapters
 const AMBIENT_CHAPTER_GRADIENTS: Record<string, string> = {
-  hero: 'radial-gradient(ellipse at 50% 25%, rgba(220, 38, 38, 0.15) 0%, transparent 72%)',
-  about: 'radial-gradient(ellipse at 35% 35%, rgba(217, 119, 6, 0.13) 0%, transparent 68%)',
-  interests: 'radial-gradient(ellipse at 65% 30%, rgba(99, 102, 241, 0.14) 0%, transparent 72%)',
-  archive: 'radial-gradient(ellipse at 50% 45%, rgba(245, 158, 11, 0.15) 0%, transparent 70%)',
-  milestones: 'radial-gradient(ellipse at 40% 50%, rgba(234, 179, 8, 0.13) 0%, transparent 68%)',
-  philosophy: 'radial-gradient(ellipse at 60% 55%, rgba(168, 85, 247, 0.13) 0%, transparent 70%)',
-  contact: 'radial-gradient(ellipse at 50% 65%, rgba(16, 185, 129, 0.15) 0%, transparent 68%)',
+  hero: 'radial-gradient(circle at 50% 25%, rgba(220, 38, 38, 0.22) 0%, rgba(220, 38, 38, 0.05) 45%, transparent 75%)',
+  about: 'radial-gradient(circle at 35% 35%, rgba(217, 119, 6, 0.20) 0%, rgba(217, 119, 6, 0.04) 45%, transparent 72%)',
+  interests: 'radial-gradient(circle at 65% 30%, rgba(99, 102, 241, 0.22) 0%, rgba(99, 102, 241, 0.05) 45%, transparent 75%)',
+  archive: 'radial-gradient(circle at 50% 45%, rgba(245, 158, 11, 0.22) 0%, rgba(245, 158, 11, 0.05) 45%, transparent 72%)',
+  milestones: 'radial-gradient(circle at 40% 50%, rgba(234, 179, 8, 0.20) 0%, rgba(234, 179, 8, 0.04) 45%, transparent 72%)',
+  philosophy: 'radial-gradient(circle at 60% 55%, rgba(168, 85, 247, 0.20) 0%, rgba(168, 85, 247, 0.04) 45%, transparent 72%)',
+  contact: 'radial-gradient(circle at 50% 65%, rgba(16, 185, 129, 0.22) 0%, rgba(16, 185, 129, 0.05) 45%, transparent 72%)',
 }
 
 // =========================================================================
@@ -1432,14 +1432,19 @@ export default function App() {
 
       {/* =========================================================================
           DYNAMIC CHAPTER AMBIENT TINTING (Smooth Ambient Lighting Shifts)
+          GPU-accelerated cross-fading opacity layers between chapters
           ========================================================================= */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000 ease-out"
-        style={{
-          background: AMBIENT_CHAPTER_GRADIENTS[activeSection] || AMBIENT_CHAPTER_GRADIENTS.hero,
-        }}
-        aria-hidden="true"
-      />
+      {SECTIONS.map((section) => (
+        <div
+          key={`ambient-${section.id}`}
+          className="fixed inset-0 pointer-events-none z-0 transition-opacity duration-1000 ease-out will-change-[opacity]"
+          style={{
+            background: AMBIENT_CHAPTER_GRADIENTS[section.id] || AMBIENT_CHAPTER_GRADIENTS.hero,
+            opacity: activeSection === section.id ? 1 : 0,
+          }}
+          aria-hidden="true"
+        />
+      ))}
 
       {/* =========================================================================
           1. READING SCROLL PROGRESS BAR (Compositor ScaleX Transform)
@@ -1789,7 +1794,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="about"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Animated Reveal Rule */}
@@ -1896,7 +1901,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="interests"
-        className="relative border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         {/* 1. Scroll-Stopping Pinned Section: vertical scrolling scrubs horizontal card progression */}
         <ScrollStoppingInterests
@@ -1911,7 +1916,7 @@ export default function App() {
         />
 
         {/* 2. Cinematic Digital Storytelling Video Frame Spotlight (Interest 07) */}
-        <div id="vlog-spotlight" className="py-24 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-[#0c0c0c] scroll-mt-24">
+        <div id="vlog-spotlight" className="py-24 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-transparent scroll-mt-24">
           <div className="max-w-6xl mx-auto space-y-12">
             <Reveal delay={0}>
               <CinematicVlogPlayer
@@ -1924,7 +1929,7 @@ export default function App() {
         </div>
 
         {/* 3. Complete Discipline Directory for Linear Reference */}
-        <div className="py-20 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-[#0e0e0e]">
+        <div className="py-20 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-transparent">
           <div className="max-w-6xl mx-auto space-y-8">
             <Reveal delay={0}>
               <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#efeee9]/15">
@@ -1980,7 +1985,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="archive"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule & Digicam Toggle */}
@@ -2085,7 +2090,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="milestones"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule */}
@@ -2191,7 +2196,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="philosophy"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0d0d0d] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         <div className="max-w-6xl mx-auto space-y-16">
           {/* Section Header with Reveal Rule */}
@@ -2254,7 +2259,7 @@ export default function App() {
           ========================================================================= */}
       <section
         id="contact"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-transparent scroll-mt-24"
       >
         <div className="max-w-4xl mx-auto space-y-12">
           {/* Section Header with Reveal Rule */}
@@ -2382,7 +2387,7 @@ export default function App() {
       {/* =========================================================================
           GLOBAL EDITORIAL FOOTER
           ========================================================================= */}
-      <footer className="py-20 pb-28 sm:pb-20 px-4 sm:px-12 lg:px-20 bg-[#080808] text-[#efeee9] border-t border-[#efeee9]/10">
+      <footer className="py-20 pb-28 sm:pb-20 px-4 sm:px-12 lg:px-20 bg-[#080808]/90 backdrop-blur-md text-[#efeee9] border-t border-[#efeee9]/10">
         <div className="max-w-6xl mx-auto space-y-12">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 pb-12 border-b border-[#efeee9]/15">
             <div className="space-y-3">

@@ -9,7 +9,10 @@ import {
   Tv,
   Film,
   Sparkles,
+  ChevronLeft,
   ChevronRight,
+  SkipBack,
+  SkipForward,
   Battery,
   SlidersHorizontal,
   X
@@ -89,7 +92,6 @@ export function CinematicVlogPlayer({
   const [currentTimeSec, setCurrentTimeSec] = useState(14)
   const [scanlinesActive, setScanlinesActive] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [showSpecs, setShowSpecs] = useState(false)
 
   const activeScene = VLOG_SCENES[currentSceneIdx]
   const totalDuration = VLOG_SCENES.reduce((acc, s) => acc + s.durationSec, 0)
@@ -100,7 +102,7 @@ export function CinematicVlogPlayer({
 
     const interval = setInterval(() => {
       setCurrentTimeSec((prev) => {
-        if (prev >= activeScene.durationSec) {
+        if (prev + 1 >= activeScene.durationSec) {
           // Advance to next scene automatically
           setCurrentSceneIdx((cur) => (cur + 1) % VLOG_SCENES.length)
           return 0
@@ -111,6 +113,35 @@ export function CinematicVlogPlayer({
 
     return () => clearInterval(interval)
   }, [isPlaying, activeScene.durationSec])
+
+  // Fullscreen keyboard controls & body scroll lock
+  useEffect(() => {
+    if (!isFullscreen) return
+    document.body.style.overflow = 'hidden'
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsFullscreen(false)
+        onPlayTick()
+      } else if (e.key === ' ' || e.key === 'k') {
+        e.preventDefault()
+        togglePlay()
+      } else if (e.key === 'ArrowRight') {
+        stepScene(1)
+      } else if (e.key === 'ArrowLeft') {
+        stepScene(-1)
+      } else if (e.key.toLowerCase() === 'm') {
+        onPlayTick()
+        onToggleSound()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isFullscreen, isPlaying])
 
   // Format seconds into MM:SS
   const formatTime = (secs: number) => {
@@ -136,6 +167,12 @@ export function CinematicVlogPlayer({
   const selectScene = (idx: number) => {
     onPlayTick()
     setCurrentSceneIdx(idx)
+    setCurrentTimeSec(0)
+  }
+
+  const stepScene = (delta: number) => {
+    onPlayTick()
+    setCurrentSceneIdx((cur) => (cur + delta + VLOG_SCENES.length) % VLOG_SCENES.length)
     setCurrentTimeSec(0)
   }
 
@@ -218,29 +255,60 @@ export function CinematicVlogPlayer({
             </div>
           </div>
 
-          {/* Center Play/Pause Watermark Button on Hover */}
-          <button
-            onClick={togglePlay}
-            aria-label={isPlaying ? 'Pause video' : 'Play video'}
-            className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-black/70 backdrop-blur-md border border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer z-20 shadow-2xl"
-          >
-            {isPlaying ? (
-              <Pause size={24} strokeWidth={2} />
-            ) : (
-              <Play size={24} strokeWidth={2} className="translate-x-0.5" />
-            )}
-          </button>
+          {/* Center Play/Pause & Stepper Controls */}
+          <div className="absolute inset-0 m-auto flex items-center justify-center gap-4 z-20 pointer-events-none">
+            <button
+              onClick={() => stepScene(-1)}
+              aria-label="Previous episode"
+              className="p-3 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto cursor-pointer shadow-xl hidden sm:flex"
+            >
+              <SkipBack size={18} />
+            </button>
+            <button
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause video' : 'Play video'}
+              className="w-16 h-16 rounded-full bg-black/70 backdrop-blur-md border border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center cursor-pointer pointer-events-auto shadow-2xl"
+            >
+              {isPlaying ? (
+                <Pause size={24} strokeWidth={2} />
+              ) : (
+                <Play size={24} strokeWidth={2} className="translate-x-0.5" />
+              )}
+            </button>
+            <button
+              onClick={() => stepScene(1)}
+              aria-label="Next episode"
+              className="p-3 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black hover:scale-110 active:scale-95 transition-all duration-300 pointer-events-auto cursor-pointer shadow-xl hidden sm:flex"
+            >
+              <SkipForward size={18} />
+            </button>
+          </div>
 
           {/* Camcorder HUD — Bottom Controls & Scrubber */}
           <div className="absolute bottom-3 inset-x-3 sm:bottom-4 sm:inset-x-5 z-20 space-y-2">
-            {/* Scrubber Progress Bar */}
+            {/* Scrubber Progress Bar with Slider Accessibility */}
             <div
+              role="slider"
+              tabIndex={0}
+              aria-label={`Video progress for ${activeScene.title}`}
+              aria-valuemin={0}
+              aria-valuemax={activeScene.durationSec}
+              aria-valuenow={currentTimeSec}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowRight') {
+                  e.preventDefault()
+                  setCurrentTimeSec((t) => Math.min(activeScene.durationSec, t + 2))
+                } else if (e.key === 'ArrowLeft') {
+                  e.preventDefault()
+                  setCurrentTimeSec((t) => Math.max(0, t - 2))
+                }
+              }}
               onClick={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect()
-                const pct = (e.clientX - rect.left) / rect.width
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
                 setCurrentTimeSec(Math.round(pct * activeScene.durationSec))
               }}
-              className="w-full h-1.5 bg-white/20 hover:h-2 transition-all rounded-full overflow-hidden cursor-pointer"
+              className="w-full h-1.5 bg-white/20 hover:h-2 focus-visible:h-2 transition-all rounded-full overflow-hidden cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-[#efeee9]"
             >
               <div
                 className="h-full bg-gradient-to-r from-red-500 via-amber-400 to-[#efeee9]"
@@ -280,6 +348,7 @@ export function CinematicVlogPlayer({
                     setScanlinesActive(!scanlinesActive)
                   }}
                   title="Toggle CRT Scanline Overlay"
+                  aria-label="Toggle CRT Scanline Overlay"
                   className={`p-1.5 rounded border text-[10px] uppercase transition-all cursor-pointer ${
                     scanlinesActive
                       ? 'bg-[#efeee9] text-black border-[#efeee9]'
@@ -296,6 +365,7 @@ export function CinematicVlogPlayer({
                     onToggleSound()
                   }}
                   title="Toggle Ambient Audio Soundtrack"
+                  aria-label="Toggle Ambient Audio Soundtrack"
                   className={`p-1.5 rounded border text-[10px] uppercase transition-all cursor-pointer ${
                     isPlayingSound
                       ? 'bg-[#efeee9] text-black border-[#efeee9]'
@@ -312,6 +382,7 @@ export function CinematicVlogPlayer({
                     setIsFullscreen(true)
                   }}
                   title="Expand to Fullscreen Cinema Mode"
+                  aria-label="Expand to Fullscreen Cinema Mode"
                   className="p-1.5 rounded border bg-black/60 text-[#efeee9]/80 border-white/20 hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer"
                 >
                   <Maximize2 size={13} />
@@ -353,52 +424,120 @@ export function CinematicVlogPlayer({
         <div
           role="dialog"
           aria-modal="true"
+          aria-label={`Cinema Mode: ${activeScene.title}`}
           className="fixed inset-0 z-50 bg-black flex flex-col justify-between p-4 sm:p-8 animate-fade-in"
         >
           {/* Top Bar */}
           <div className="flex items-center justify-between pb-3 border-b border-[#efeee9]/15 text-[#efeee9]">
             <div className="flex items-center gap-3 font-mono text-xs">
               <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="uppercase tracking-widest">
+              <span className="uppercase tracking-widest truncate max-w-[240px] sm:max-w-none">
                 Alice Mystica &bull; Cinema Mode &bull; {activeScene.title}
               </span>
             </div>
 
-            <button
-              onClick={() => setIsFullscreen(false)}
-              className="p-2 rounded-full border border-white/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-3">
+              <span className="hidden md:inline-block text-[11px] font-mono text-[#efeee9]/50">
+                [Space] Play &bull; [&larr;/&rarr;] Scenes &bull; [Esc] Close
+              </span>
+              <button
+                onClick={() => setIsFullscreen(false)}
+                aria-label="Exit cinema mode"
+                className="p-2 rounded-full border border-white/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {/* Fullscreen Cinema View */}
-          <div className="relative my-auto w-full max-w-5xl mx-auto aspect-video rounded-xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(255,255,255,0.08)]">
+          <div className="relative my-auto w-full max-w-5xl mx-auto aspect-video rounded-xl overflow-hidden border border-white/20 shadow-[0_0_80px_rgba(255,255,255,0.08)] bg-black">
             <img
               src={activeScene.photoUrl}
               alt={activeScene.title}
               className={`w-full h-full object-cover ${isPlaying ? 'anim-ken-burns' : ''}`}
             />
-            {scanlinesActive && <div className="absolute inset-0 scanlines opacity-75" />}
-            <div className="absolute top-4 left-4 font-mono text-xs text-red-400 bg-black/60 px-2.5 py-1 rounded">
+            {scanlinesActive && <div className="absolute inset-0 scanlines opacity-75 pointer-events-none" />}
+            <div className="absolute top-4 left-4 font-mono text-xs text-red-400 bg-black/60 px-2.5 py-1 rounded border border-white/10">
               REC ● {formatTimecode(currentTimeSec)}
+            </div>
+
+            {/* In-Cinema Scrubber Bar */}
+            <div
+              role="slider"
+              tabIndex={0}
+              aria-label={`Fullscreen video progress for ${activeScene.title}`}
+              aria-valuemin={0}
+              aria-valuemax={activeScene.durationSec}
+              aria-valuenow={currentTimeSec}
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect()
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                setCurrentTimeSec(Math.round(pct * activeScene.durationSec))
+              }}
+              className="absolute bottom-0 inset-x-0 h-1.5 bg-white/20 hover:h-2.5 transition-all cursor-pointer"
+            >
+              <div
+                className="h-full bg-gradient-to-r from-red-500 via-amber-400 to-[#efeee9]"
+                style={{
+                  width: `${(currentTimeSec / activeScene.durationSec) * 100}%`,
+                }}
+              />
             </div>
           </div>
 
           {/* Bottom Bar */}
-          <div className="flex items-center justify-between pt-3 border-t border-[#efeee9]/15 text-xs font-mono text-[#efeee9]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-[#efeee9]/15 text-xs font-mono text-[#efeee9]">
             <div className="flex items-center gap-3">
               <button
+                onClick={() => stepScene(-1)}
+                aria-label="Previous episode"
+                className="p-2 rounded-full border border-white/20 hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
                 onClick={togglePlay}
-                className="px-4 py-2 rounded-full bg-[#efeee9] text-black font-semibold hover:opacity-90"
+                className="px-4 py-2 rounded-full bg-[#efeee9] text-black font-semibold hover:opacity-90 cursor-pointer"
               >
                 {isPlaying ? 'Pause' : 'Play'}
               </button>
-              <span>{activeScene.location}</span>
+              <button
+                onClick={() => stepScene(1)}
+                aria-label="Next episode"
+                className="p-2 rounded-full border border-white/20 hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <span className="hidden sm:inline-block text-[#efeee9]/70">{activeScene.location}</span>
             </div>
-            <p className="hidden sm:inline-block text-[#efeee9]/70 italic font-serif">
-              &ldquo;{activeScene.caption}&rdquo;
-            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  onPlayTick()
+                  setScanlinesActive(!scanlinesActive)
+                }}
+                className={`p-1.5 rounded border text-[10px] uppercase transition-all cursor-pointer ${
+                  scanlinesActive ? 'bg-[#efeee9] text-black border-[#efeee9]' : 'border-white/20 text-[#efeee9]/70'
+                }`}
+              >
+                <Tv size={14} />
+              </button>
+              <button
+                onClick={() => {
+                  onPlayTick()
+                  onToggleSound()
+                }}
+                className={`p-1.5 rounded border text-[10px] uppercase transition-all cursor-pointer ${
+                  isPlayingSound ? 'bg-[#efeee9] text-black border-[#efeee9]' : 'border-white/20 text-[#efeee9]/70'
+                }`}
+              >
+                {isPlayingSound ? <Volume2 size={14} /> : <VolumeX size={14} />}
+              </button>
+              <p className="hidden md:inline-block text-[#efeee9]/70 italic font-serif">
+                &ldquo;{activeScene.caption}&rdquo;
+              </p>
+            </div>
           </div>
         </div>
       )}

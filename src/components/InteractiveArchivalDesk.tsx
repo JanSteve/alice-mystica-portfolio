@@ -104,6 +104,20 @@ const INITIAL_CARDS: ArchivalDeskCard[] = [
   },
 ]
 
+const getInitialCards = (width: number): ArchivalDeskCard[] => {
+  const isMobile = width < 640
+  if (isMobile) {
+    return [
+      { ...INITIAL_CARDS[0], x: 16, y: 20, rotation: -4, zIndex: 1 },
+      { ...INITIAL_CARDS[1], x: 110, y: 45, rotation: 5, zIndex: 2 },
+      { ...INITIAL_CARDS[2], x: 20, y: 215, rotation: -3, zIndex: 3 },
+      { ...INITIAL_CARDS[3], x: 115, y: 245, rotation: 6, zIndex: 4 },
+      { ...INITIAL_CARDS[4], x: 60, y: 395, rotation: -2, zIndex: 5 },
+    ]
+  }
+  return INITIAL_CARDS
+}
+
 export function InteractiveArchivalDesk({
   onOpenLightbox,
   onPlayTick,
@@ -114,6 +128,7 @@ export function InteractiveArchivalDesk({
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [highestZ, setHighestZ] = useState<number>(10)
   const [deskWidth, setDeskWidth] = useState<number>(900)
+  const lastTapRef = useRef<{ id: string; time: number }>({ id: '', time: 0 })
 
   // Track initial drag coords
   const dragStateRef = useRef<{
@@ -128,14 +143,18 @@ export function InteractiveArchivalDesk({
     cardStartY: 0,
   })
 
-  // Measure desk width for responsive boundaries
+  // Measure desk width and configure responsive initial layout
   useEffect(() => {
     const handleResize = () => {
       if (deskRef.current) {
-        setDeskWidth(deskRef.current.clientWidth)
+        const w = deskRef.current.clientWidth
+        setDeskWidth(w)
       }
     }
     handleResize()
+    if (deskRef.current && deskRef.current.clientWidth < 640) {
+      setCards(getInitialCards(deskRef.current.clientWidth))
+    }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
@@ -192,7 +211,7 @@ export function InteractiveArchivalDesk({
     )
   }
 
-  // Pointer Up: release capture
+  // Pointer Up: release capture & detect double tap
   const handlePointerUp = (id: string, e: React.PointerEvent<HTMLDivElement>) => {
     if (activeDragId === id) {
       try {
@@ -200,6 +219,22 @@ export function InteractiveArchivalDesk({
       } catch {}
       setActiveDragId(null)
       onPlayTick()
+
+      // Detect double tap / click if pointer didn't drag
+      const deltaX = Math.abs(e.clientX - dragStateRef.current.pointerStartX)
+      const deltaY = Math.abs(e.clientY - dragStateRef.current.pointerStartY)
+      if (deltaX < 8 && deltaY < 8) {
+        const now = Date.now()
+        if (lastTapRef.current.id === id && now - lastTapRef.current.time < 350) {
+          const card = cards.find((c) => c.id === id)
+          if (card) {
+            onOpenLightbox(card.photoIndex)
+          }
+          lastTapRef.current = { id: '', time: 0 }
+        } else {
+          lastTapRef.current = { id, time: now }
+        }
+      }
     }
   }
 
@@ -209,15 +244,15 @@ export function InteractiveArchivalDesk({
     const desk = deskRef.current
     const deskW = desk ? desk.clientWidth : 900
     const deskH = desk ? desk.clientHeight : 600
-    const cardW = window.innerWidth < 640 ? 170 : 220
-    const cardH = window.innerWidth < 640 ? 240 : 300
+    const cardW = window.innerWidth < 640 ? 160 : 220
+    const cardH = window.innerWidth < 640 ? 230 : 300
 
     setCards((prev) =>
       prev.map((card, idx) => {
-        const maxX = Math.max(20, deskW - cardW - 30)
-        const maxY = Math.max(20, deskH - cardH - 30)
-        const randX = 20 + Math.random() * (maxX - 20)
-        const randY = 20 + Math.random() * (maxY - 20)
+        const maxX = Math.max(16, deskW - cardW - 24)
+        const maxY = Math.max(16, deskH - cardH - 24)
+        const randX = 16 + Math.random() * Math.max(0, maxX - 16)
+        const randY = 16 + Math.random() * Math.max(0, maxY - 16)
         const randRot = -10 + Math.random() * 20
         return {
           ...card,
@@ -234,8 +269,8 @@ export function InteractiveArchivalDesk({
   const gridCards = () => {
     onPlayTick()
     const isMobile = window.innerWidth < 640
-    const cardW = isMobile ? 150 : 210
-    const gap = isMobile ? 14 : 24
+    const cardW = isMobile ? 140 : 210
+    const gap = isMobile ? 12 : 24
 
     setCards((prev) =>
       prev.map((card, idx) => {
@@ -246,7 +281,7 @@ export function InteractiveArchivalDesk({
           const col = idx % 2
           const row = Math.floor(idx / 2)
           x = 16 + col * (cardW + gap)
-          y = 20 + row * 230
+          y = 20 + row * 205
         } else {
           // 3 in row 1, 2 in row 2 centered
           if (idx < 3) {
@@ -271,7 +306,8 @@ export function InteractiveArchivalDesk({
   // Reset to initial curated layout
   const resetCards = () => {
     onPlayTick()
-    setCards(INITIAL_CARDS)
+    const w = deskRef.current ? deskRef.current.clientWidth : window.innerWidth
+    setCards(getInitialCards(w))
   }
 
   return (
@@ -349,6 +385,16 @@ export function InteractiveArchivalDesk({
           return (
             <div
               key={card.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`Archival photo: ${card.title}. Double-tap or press Enter to inspect.`}
+              onDoubleClick={() => onOpenLightbox(card.photoIndex)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  onOpenLightbox(card.photoIndex)
+                }
+              }}
               onPointerDown={(e) => handlePointerDown(card.id, e)}
               onPointerMove={(e) => handlePointerMove(card.id, e)}
               onPointerUp={(e) => handlePointerUp(card.id, e)}
@@ -363,7 +409,7 @@ export function InteractiveArchivalDesk({
                   ? 'none'
                   : 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease',
               }}
-              className={`absolute top-0 left-0 w-[180px] sm:w-[220px] bg-[#f4f3ee] text-[#111111] p-3 pb-4 rounded-sm transition-shadow cursor-grab active:cursor-grabbing will-change-transform ${
+              className={`absolute top-0 left-0 w-[180px] sm:w-[220px] bg-[#f4f3ee] text-[#111111] p-3 pb-4 rounded-sm transition-shadow cursor-grab active:cursor-grabbing will-change-transform outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
                 isDragging ? 'polaroid-active shadow-2xl' : 'polaroid-idle'
               }`}
             >
@@ -393,11 +439,13 @@ export function InteractiveArchivalDesk({
 
                 {/* Inspect Button */}
                 <button
+                  onPointerDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
                     e.stopPropagation()
                     onOpenLightbox(card.photoIndex)
                   }}
                   title="Expand to Fullscreen Lightbox"
+                  aria-label={`Expand ${card.title} to Fullscreen Lightbox`}
                   className="absolute top-2 right-2 p-1.5 rounded-full bg-black/80 text-[#efeee9] hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer opacity-80 hover:opacity-100 shadow-md"
                 >
                   <Maximize2 size={12} />
