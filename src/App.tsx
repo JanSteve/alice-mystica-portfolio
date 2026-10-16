@@ -30,6 +30,11 @@ import {
   ChevronDown
 } from 'lucide-react'
 
+import { MagneticButton } from './components/MagneticButton'
+import { ScrollStoppingInterests } from './components/ScrollStoppingInterests'
+import { InteractiveArchivalDesk } from './components/InteractiveArchivalDesk'
+import { CinematicVlogPlayer } from './components/CinematicVlogPlayer'
+
 // =========================================================================
 // R ALICE MYSTICA — THE CREATIVE ARCHIVE
 // Exclusively utilizing the 5 verified user-provided archive photos
@@ -255,6 +260,17 @@ const SECTIONS: SectionItem[] = [
   { id: 'philosophy', number: '05', title: 'Perspective & Vision', navLabel: 'Philosophy' },
   { id: 'contact', number: '06', title: 'Inquiry & Dialogue', navLabel: 'Inquiry' },
 ]
+
+// Dynamic Chapter Ambient Tinting: subtle lighting shifts smoothly as user traverses chapters
+const AMBIENT_CHAPTER_GRADIENTS: Record<string, string> = {
+  hero: 'radial-gradient(ellipse at 50% 25%, rgba(220, 38, 38, 0.15) 0%, transparent 72%)',
+  about: 'radial-gradient(ellipse at 35% 35%, rgba(217, 119, 6, 0.13) 0%, transparent 68%)',
+  interests: 'radial-gradient(ellipse at 65% 30%, rgba(99, 102, 241, 0.14) 0%, transparent 72%)',
+  archive: 'radial-gradient(ellipse at 50% 45%, rgba(245, 158, 11, 0.15) 0%, transparent 70%)',
+  milestones: 'radial-gradient(ellipse at 40% 50%, rgba(234, 179, 8, 0.13) 0%, transparent 68%)',
+  philosophy: 'radial-gradient(ellipse at 60% 55%, rgba(168, 85, 247, 0.13) 0%, transparent 70%)',
+  contact: 'radial-gradient(ellipse at 50% 65%, rgba(16, 185, 129, 0.15) 0%, transparent 68%)',
+}
 
 // =========================================================================
 // AMBIENT SOUNDSCAPE ENGINE (Web Audio API Synthesizer)
@@ -1144,7 +1160,6 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhot
 
 export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [selectedInterest, setSelectedInterest] = useState<number>(0)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const [messageForm, setMessageForm] = useState({ name: '', email: '', subject: 'Creative Collaboration', message: '' })
   const [messageSubmitted, setMessageSubmitted] = useState(false)
@@ -1416,6 +1431,17 @@ export default function App() {
     <div className="min-h-screen w-full bg-[#0d0d0d] text-[#efeee9] font-hn selection:bg-[#efeee9] selection:text-black relative">
 
       {/* =========================================================================
+          DYNAMIC CHAPTER AMBIENT TINTING (Smooth Ambient Lighting Shifts)
+          ========================================================================= */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 transition-all duration-1000 ease-out"
+        style={{
+          background: AMBIENT_CHAPTER_GRADIENTS[activeSection] || AMBIENT_CHAPTER_GRADIENTS.hero,
+        }}
+        aria-hidden="true"
+      />
+
+      {/* =========================================================================
           1. READING SCROLL PROGRESS BAR (Compositor ScaleX Transform)
           ========================================================================= */}
       <ReadingProgressBar progress={scrollProgress} />
@@ -1506,17 +1532,21 @@ export default function App() {
         {/* Actions & Desktop Navigation */}
         <div className="flex items-center gap-2.5 sm:gap-6">
           {/* Ambient Soundscape Toggle (Visible on all devices!) */}
-          <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
+          <MagneticButton strength={0.25}>
+            <AudioToggle isPlaying={isPlayingSound} onToggle={toggleSound} />
+          </MagneticButton>
 
           {/* Share Archive Button */}
-          <button
-            onClick={shareArchive}
-            aria-label="Share archive portfolio link"
-            title="Share Archive"
-            className="hidden sm:flex p-2 rounded-full border border-[#efeee9]/20 bg-[#141414]/90 text-[#efeee9]/70 hover:text-[#efeee9] hover:border-[#efeee9]/50 transition-all cursor-pointer min-h-[40px] min-w-[40px] items-center justify-center active:scale-95"
-          >
-            <Share2 size={15} />
-          </button>
+          <MagneticButton strength={0.3}>
+            <button
+              onClick={shareArchive}
+              aria-label="Share archive portfolio link"
+              title="Share Archive"
+              className="hidden sm:flex p-2 rounded-full border border-[#efeee9]/20 bg-[#141414]/90 text-[#efeee9]/70 hover:text-[#efeee9] hover:border-[#efeee9]/50 transition-all cursor-pointer min-h-[40px] min-w-[40px] items-center justify-center active:scale-95"
+            >
+              <Share2 size={15} />
+            </button>
+          </MagneticButton>
 
           {/* Desktop Nav Links */}
           <nav className="hidden lg:flex items-center gap-6 text-sm font-light tracking-wide">
@@ -1544,17 +1574,19 @@ export default function App() {
                 </a>
               )
             })}
-            <a
-              href="#contact"
-              onClick={(e) => handleNavClick('contact', e)}
-              className={`px-4 py-2 border text-xs uppercase tracking-widest transition-all duration-300 cursor-pointer ${
-                activeSection === 'contact'
-                  ? 'bg-[#efeee9] text-black border-[#efeee9]'
-                  : 'border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black'
-              }`}
-            >
-              Inquiry
-            </a>
+            <MagneticButton strength={0.28}>
+              <a
+                href="#contact"
+                onClick={(e) => handleNavClick('contact', e)}
+                className={`px-4 py-2 border text-xs uppercase tracking-widest transition-all duration-300 block cursor-pointer ${
+                  activeSection === 'contact'
+                    ? 'bg-[#efeee9] text-black border-[#efeee9]'
+                    : 'border-[#efeee9]/30 text-[#efeee9] hover:bg-[#efeee9] hover:text-black'
+                }`}
+              >
+                Inquiry
+              </a>
+            </MagneticButton>
           </nav>
 
           {/* Mobile Hamburger Button with 44px tap target */}
@@ -1719,25 +1751,29 @@ export default function App() {
             <span className="text-[#efeee9]/70">Visual Storyteller &bull; BBA Scholar &bull; Observer</span>
           </div>
 
-          {/* Centered Scroll Indicator & Share Button */}
+          {/* Centered Scroll Indicator & Share Button with Magnetic Physics */}
           <div className="flex items-center gap-3 mx-auto sm:mx-0">
-            <a
-              href="#about"
-              onClick={(e) => handleNavClick('about', e)}
-              className="flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer shadow-lg min-h-[44px]"
-            >
-              <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
-              <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300 animate-bounce" />
-            </a>
+            <MagneticButton strength={0.25}>
+              <a
+                href="#about"
+                onClick={(e) => handleNavClick('about', e)}
+                className="flex items-center gap-2 px-5 py-2.5 border border-[#efeee9]/30 rounded-full bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all duration-300 group cursor-pointer shadow-lg min-h-[44px]"
+              >
+                <span className="text-xs uppercase tracking-[0.2em]">Explore Below</span>
+                <ArrowDown size={14} className="group-hover:translate-y-1 transition-transform duration-300 animate-bounce" />
+              </a>
+            </MagneticButton>
 
-            <button
-              onClick={shareArchive}
-              title="Share Archive Link"
-              className="p-2.5 rounded-full border border-[#efeee9]/20 bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center text-[#efeee9]"
-              aria-label="Share Archive Link"
-            >
-              <Share2 size={14} />
-            </button>
+            <MagneticButton strength={0.3}>
+              <button
+                onClick={shareArchive}
+                title="Share Archive Link"
+                className="p-2.5 rounded-full border border-[#efeee9]/20 bg-black/40 backdrop-blur-md hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center text-[#efeee9]"
+                aria-label="Share Archive Link"
+              >
+                <Share2 size={14} />
+              </button>
+            </MagneticButton>
           </div>
 
           <div className="anim-fade-up delay-footer-right text-left sm:text-right flex flex-col gap-0.5">
@@ -1855,190 +1891,57 @@ export default function App() {
 
       {/* =========================================================================
           SECTION 02: THE 8 CREATIVE INTERESTS
+          Featuring Framer-Style Scroll-Stopping Pinned Progression &
+          Cinematic Digital Storytelling Video Frame (Discipline 07)
           ========================================================================= */}
       <section
         id="interests"
-        className="relative py-28 px-4 sm:px-12 lg:px-20 border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
+        className="relative border-b border-[#efeee9]/10 bg-[#0e0e0e] scroll-mt-24"
       >
-        <div className="max-w-6xl mx-auto space-y-16">
-          {/* Section Header with Reveal Rule */}
-          <div className="space-y-4">
+        {/* 1. Scroll-Stopping Pinned Section: vertical scrolling scrubs horizontal card progression */}
+        <ScrollStoppingInterests
+          interests={CREATIVE_INTERESTS}
+          isPlayingSound={isPlayingSound}
+          onToggleSound={toggleSound}
+          onLaunchVlog={() => {
+            const el = document.getElementById('vlog-spotlight')
+            if (el) el.scrollIntoView({ behavior: 'smooth' })
+          }}
+          onPlayTick={() => soundEngine.playTick()}
+        />
+
+        {/* 2. Cinematic Digital Storytelling Video Frame Spotlight (Interest 07) */}
+        <div id="vlog-spotlight" className="py-24 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-[#0c0c0c] scroll-mt-24">
+          <div className="max-w-6xl mx-auto space-y-12">
             <Reveal delay={0}>
-              <div className="pb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <CinematicVlogPlayer
+                isPlayingSound={isPlayingSound}
+                onToggleSound={toggleSound}
+                onPlayTick={() => soundEngine.playTick()}
+              />
+            </Reveal>
+          </div>
+        </div>
+
+        {/* 3. Complete Discipline Directory for Linear Reference */}
+        <div className="py-20 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-[#0e0e0e]">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <Reveal delay={0}>
+              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#efeee9]/15">
                 <div>
-                  <span className="text-xs uppercase tracking-[0.3em] text-[#efeee9]/50 block mb-2 font-mono">
-                    02 / Curation &amp; Disciplines
+                  <span className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 block mb-1 font-mono">
+                    Linear Directory
                   </span>
-                  <h2 className="text-4xl sm:text-6xl font-light tracking-tight text-[#efeee9]">
-                    THE EIGHT CREATIVE INTERESTS
-                  </h2>
+                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9]">
+                    All Eight Disciplines at a Glance
+                  </h3>
                 </div>
-                <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-md">
-                  Eight distinct avenues of exploration, aesthetics, and expression through which I document and interpret life.
+                <p className="text-xs sm:text-sm text-[#efeee9]/60 max-w-sm">
+                  A reference catalog of Alice&apos;s creative pursuits, reflective practices, and avenues of expression.
                 </p>
               </div>
             </Reveal>
-            <RevealRule delay={150} />
-          </div>
 
-          {/* Interactive Category Selector Tabs */}
-          <Reveal delay={100}>
-            {/* Mobile: Horizontal Swipeable Pill Track with Auto-Scroll Center */}
-            <div className="sm:hidden flex overflow-x-auto no-scrollbar gap-2 pb-2 snap-x snap-mandatory -mx-2 px-2 scroll-smooth">
-              {CREATIVE_INTERESTS.map((item, index) => {
-                const IconComponent = item.icon
-                const isSelected = selectedInterest === index
-                return (
-                  <button
-                    id={`interest-tab-${index}`}
-                    key={item.number}
-                    onClick={() => {
-                      setSelectedInterest(index)
-                      soundEngine.playTick()
-                      const el = document.getElementById(`interest-tab-${index}`)
-                      if (el) {
-                        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-                      }
-                    }}
-                    className={`shrink-0 snap-center px-3.5 py-2.5 rounded-full border transition-all duration-300 flex items-center gap-2 cursor-pointer text-xs min-h-[44px] ${
-                      isSelected
-                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-lg font-medium'
-                        : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
-                    }`}
-                  >
-                    <span className="font-mono text-[10px]">{item.number}</span>
-                    <IconComponent
-                      size={14}
-                      className={isSelected ? 'text-black' : 'text-[#efeee9]/50'}
-                    />
-                    <span className="truncate max-w-[130px]">{item.title}</span>
-                  </button>
-                )
-              })}
-            </div>
-            {/* Mobile Track Swipe Affordance */}
-            <div className="sm:hidden flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/45 pt-1.5 px-1 select-none">
-              <span>Discipline 0{selectedInterest + 1} / 08</span>
-              <span>&larr; Swipe disciplines &rarr;</span>
-            </div>
-
-            {/* Desktop / Tablet: 8-Column Grid */}
-            <div className="hidden sm:grid sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
-              {CREATIVE_INTERESTS.map((item, index) => {
-                const IconComponent = item.icon
-                const isSelected = selectedInterest === index
-                return (
-                  <button
-                    key={item.number}
-                    onClick={() => {
-                      setSelectedInterest(index)
-                      soundEngine.playTick()
-                    }}
-                    className={`p-3.5 text-left border transition-all duration-300 flex flex-col justify-between h-32 group cursor-pointer ${
-                      isSelected
-                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-[0_0_20px_rgba(239,238,233,0.25)] scale-[1.02]'
-                        : 'bg-black/40 text-[#efeee9]/80 border-[#efeee9]/15 hover:border-[#efeee9]/50 hover:bg-[#161616]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs">{item.number}</span>
-                      <IconComponent
-                        size={15}
-                        className={`transition-transform duration-300 group-hover:scale-110 ${
-                          isSelected ? 'text-black' : 'text-[#efeee9]/50'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] block opacity-60 uppercase tracking-widest font-mono">
-                        {item.category.split('&')[0]}
-                      </span>
-                      <span className="text-xs font-normal line-clamp-2 leading-tight">
-                        {item.title}
-                      </span>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </Reveal>
-
-          {/* Featured Deep-Dive on Active Category with Animated Transition */}
-          <Reveal delay={200}>
-            <div
-              key={selectedInterest}
-              className="p-6 sm:p-12 bg-black/60 border border-[#efeee9]/20 shadow-2xl relative overflow-hidden anim-fade-in"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-8 space-y-6">
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                    <span className="px-3 py-1 bg-[#efeee9]/10 text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/80 border border-[#efeee9]/20">
-                      Category {CREATIVE_INTERESTS[selectedInterest].number} / 08
-                    </span>
-                    <span className="text-xs text-[#efeee9]/50 uppercase tracking-widest font-mono">
-                      {CREATIVE_INTERESTS[selectedInterest].category}
-                    </span>
-                  </div>
-
-                  <h3 className="text-3xl sm:text-5xl font-light text-[#efeee9] tracking-tight">
-                    {CREATIVE_INTERESTS[selectedInterest].title}
-                  </h3>
-
-                  <p className="text-base sm:text-lg text-[#efeee9]/85 font-light leading-relaxed">
-                    {CREATIVE_INTERESTS[selectedInterest].desc}
-                  </p>
-
-                  <div className="pl-6 border-l-2 border-[#efeee9]/60 italic text-base sm:text-lg text-[#efeee9] py-1 font-serif">
-                    &ldquo;{CREATIVE_INTERESTS[selectedInterest].quote}&rdquo;
-                  </div>
-
-                  {/* Interactive Ambience Action for 02. Music & Discovery */}
-                  {selectedInterest === 1 && (
-                    <div className="pt-2">
-                      <button
-                        onClick={toggleSound}
-                        className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-[#efeee9]/30 bg-white/5 hover:bg-[#efeee9] hover:text-black transition-all cursor-pointer text-xs font-mono uppercase tracking-wider min-h-[44px]"
-                      >
-                        <Music size={14} />
-                        <span>{isPlayingSound ? 'Pause Ambient Soundscape' : 'Listen to Ambient Soundscape'}</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Editorial Icon & Visual Card */}
-                <div className="lg:col-span-4 flex flex-col justify-center items-center p-8 bg-[#141414] border border-[#efeee9]/15 text-center space-y-4 hover:border-[#efeee9]/40 transition-colors">
-                  {(() => {
-                    const CurrentIcon = CREATIVE_INTERESTS[selectedInterest].icon
-                    return (
-                      <div className="w-16 h-16 rounded-full border border-[#efeee9]/30 flex items-center justify-center bg-black/50 text-[#efeee9] shadow-inner">
-                        <CurrentIcon size={28} strokeWidth={1.5} />
-                      </div>
-                    )
-                  })()}
-                  <div className="space-y-1">
-                    <span className="text-[11px] font-mono uppercase tracking-widest text-[#efeee9]/50 block">
-                      Archive Discipline
-                    </span>
-                    <h4 className="text-sm font-medium text-[#efeee9] uppercase tracking-wider">
-                      {CREATIVE_INTERESTS[selectedInterest].title}
-                    </h4>
-                  </div>
-                  <p className="text-xs text-[#efeee9]/60 italic font-serif">
-                    Documenting life, creative intuition, and self-expression.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Reveal>
-
-          {/* Full Grid of All 8 Interests for Comprehensive Reading */}
-          <div className="space-y-4 pt-6">
-            <Reveal delay={100}>
-              <h4 className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 font-mono">
-                Complete Discipline Directory
-              </h4>
-            </Reveal>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {CREATIVE_INTERESTS.map((interest, idx) => {
                 const InterestIcon = interest.icon
@@ -2069,6 +1972,7 @@ export default function App() {
         </div>
       </section>
 
+
       {/* =========================================================================
           SECTION 03: ARCHIVAL PHOTOGRAPHY & MEMORIES
           Exclusively showcases the 5 uploaded photos with candid digicam captions,
@@ -2095,27 +1999,48 @@ export default function App() {
                   <p className="text-[#efeee9]/70 text-sm md:text-base font-light max-w-sm">
                     Candid frames, digicam aesthetics, childhood archives, and nostalgic moments preserved through time.
                   </p>
-                  {/* Digicam Quartz Stamp Toggle Button */}
-                  <button
-                    onClick={() => {
-                      setDigicamEnabled(!digicamEnabled)
-                      soundEngine.playTick()
-                      triggerToast(digicamEnabled ? 'Digicam stamp: OFF' : 'Digicam stamp: ACTIVE')
-                    }}
-                    aria-label="Toggle digicam timestamp overlay"
-                    className={`px-3.5 py-2 rounded-full border text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer min-h-[44px] shrink-0 select-none ${
-                      digicamEnabled
-                        ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-md font-medium'
-                        : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${digicamEnabled ? 'bg-red-500 animate-pulse' : 'bg-[#efeee9]/40'}`} />
-                    <span>Digicam Quartz: {digicamEnabled ? 'Active' : 'Off'}</span>
-                  </button>
+                  {/* Digicam Quartz Stamp Toggle Button with Magnetic Physics */}
+                  <MagneticButton strength={0.25}>
+                    <button
+                      onClick={() => {
+                        setDigicamEnabled(!digicamEnabled)
+                        soundEngine.playTick()
+                        triggerToast(digicamEnabled ? 'Digicam stamp: OFF' : 'Digicam stamp: ACTIVE')
+                      }}
+                      aria-label="Toggle digicam timestamp overlay"
+                      className={`px-3.5 py-2 rounded-full border text-xs font-mono uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer min-h-[44px] shrink-0 select-none ${
+                        digicamEnabled
+                          ? 'bg-[#efeee9] text-black border-[#efeee9] shadow-md font-medium'
+                          : 'bg-black/50 text-[#efeee9]/70 border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:text-[#efeee9]'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${digicamEnabled ? 'bg-red-500 animate-pulse' : 'bg-[#efeee9]/40'}`} />
+                      <span>Digicam Quartz: {digicamEnabled ? 'Active' : 'Off'}</span>
+                    </button>
+                  </MagneticButton>
                 </div>
               </div>
             </Reveal>
             <RevealRule delay={150} />
+          </div>
+
+          {/* Interactive Draggable Archival Desk / Polaroid Moodboard Canvas */}
+          <Reveal delay={100}>
+            <InteractiveArchivalDesk
+              onOpenLightbox={openLightbox}
+              onPlayTick={() => soundEngine.playTick()}
+              digicamEnabled={digicamEnabled}
+            />
+          </Reveal>
+
+          {/* Archival Wall Header */}
+          <div className="pt-6 border-t border-[#efeee9]/15">
+            <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-[#efeee9]/50 block mb-1">
+              Curated Archival Wall
+            </span>
+            <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9]">
+              Five Primary Frames &bull; Parallax Depth
+            </h3>
           </div>
 
           {/* Archival Photo Exhibition Grid with Viewport Reveals & Scroll-Driven Parallax Depth */}
@@ -2440,12 +2365,14 @@ export default function App() {
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  className="w-full bg-[#efeee9] text-black py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[#efeee9]/90 hover:tracking-[0.3em] transition-all duration-300 shadow-xl cursor-pointer"
-                >
-                  Dispatch Note Into Archive &rarr;
-                </button>
+                <MagneticButton strength={0.2} className="w-full">
+                  <button
+                    type="submit"
+                    className="w-full bg-[#efeee9] text-black py-4 text-xs uppercase tracking-[0.25em] font-medium hover:bg-[#efeee9]/90 hover:tracking-[0.3em] transition-all duration-300 shadow-xl cursor-pointer"
+                  >
+                    Dispatch Note Into Archive &rarr;
+                  </button>
+                </MagneticButton>
               </form>
             )}
           </Reveal>
