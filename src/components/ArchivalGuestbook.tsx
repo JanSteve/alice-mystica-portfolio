@@ -11,9 +11,13 @@ import {
   Clock,
   Filter,
   ShieldCheck,
-  Flame
+  Flame,
+  ThumbsUp,
+  Heart
 } from 'lucide-react'
 import { MagneticButton } from './MagneticButton'
+import { Perspective3DCard } from './Perspective3DCard'
+import { triggerHaptic } from '../utils/haptics'
 
 export interface GuestbookEntry {
   id: string
@@ -26,6 +30,22 @@ export interface GuestbookEntry {
   timestamp: string
   isVerified?: boolean
 }
+
+export type ReactionKey = 'awwwards' | 'poetry' | 'iconic' | 'archival'
+
+interface ReactionItem {
+  key: ReactionKey
+  emoji: string
+  label: string
+  defaultCount: number
+}
+
+const REACTION_CONFIG: ReactionItem[] = [
+  { key: 'awwwards', emoji: '🏆', label: 'Awwwards Worthy', defaultCount: 24 },
+  { key: 'poetry', emoji: '✨', label: 'Pure Poetry', defaultCount: 19 },
+  { key: 'iconic', emoji: '🖤', label: 'Iconic', defaultCount: 28 },
+  { key: 'archival', emoji: '📜', label: 'Archival Excellence', defaultCount: 17 },
+]
 
 const INITIAL_ENDORSEMENTS: GuestbookEntry[] = [
   {
@@ -40,8 +60,8 @@ const INITIAL_ENDORSEMENTS: GuestbookEntry[] = [
     isVerified: true,
   },
   {
-    name: "Elena Rostova",
     id: "end-02",
+    name: "Elena Rostova",
     role: "Head of Interaction Design, Zurich Atelier",
     location: "Zurich, CH",
     score: 9.8,
@@ -51,8 +71,8 @@ const INITIAL_ENDORSEMENTS: GuestbookEntry[] = [
     isVerified: true,
   },
   {
-    name: "Dr. V. Swaminathan",
     id: "end-03",
+    name: "Dr. V. Swaminathan",
     role: "Professor of Strategic Management & Business Dean",
     location: "Chennai, IN",
     score: 9.9,
@@ -62,8 +82,8 @@ const INITIAL_ENDORSEMENTS: GuestbookEntry[] = [
     isVerified: true,
   },
   {
-    name: "Kaelen Thorne",
     id: "end-04",
+    name: "Kaelen Thorne",
     role: "Fashion & Creative Archivist",
     location: "Tokyo, JP",
     score: 9.8,
@@ -73,8 +93,8 @@ const INITIAL_ENDORSEMENTS: GuestbookEntry[] = [
     isVerified: true,
   },
   {
-    name: "Amara O'Connor",
     id: "end-05",
+    name: "Amara O'Connor",
     role: "Visual Culture Critic & Curator",
     location: "Dublin, IE",
     score: 9.9,
@@ -106,6 +126,44 @@ export function ArchivalGuestbook({
   const [formNote, setFormNote] = useState('')
   const [formSubmitted, setFormSubmitted] = useState(false)
 
+  // Interactive Reactions State with localStorage persistence
+  const [reactions, setReactions] = useState<{
+    [entryId: string]: { [key in ReactionKey]?: { count: number; reacted: boolean } }
+  }>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('alice_guestbook_reactions_v2')
+        if (saved) return JSON.parse(saved)
+      } catch {}
+    }
+    const initial: { [entryId: string]: { [key in ReactionKey]?: { count: number; reacted: boolean } } } = {}
+    INITIAL_ENDORSEMENTS.forEach((entry, idx) => {
+      initial[entry.id] = {
+        awwwards: { count: 20 + ((idx * 7) % 15), reacted: false },
+        poetry: { count: 15 + ((idx * 5) % 12), reacted: false },
+        iconic: { count: 22 + ((idx * 9) % 18), reacted: false },
+        archival: { count: 14 + ((idx * 4) % 10), reacted: false },
+      }
+    })
+    return initial
+  })
+
+  // Global visitor stamp counters
+  const [visitorSeals, setVisitorSeals] = useState<{ [key: string]: number }>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('alice_visitor_seals_v2')
+        if (saved) return JSON.parse(saved)
+      } catch {}
+    }
+    return {
+      sotd: 148,
+      poetry: 122,
+      museum: 139,
+      authentic: 165,
+    }
+  })
+
   // Load persisted entries from localStorage on mount
   useEffect(() => {
     try {
@@ -119,17 +177,66 @@ export function ArchivalGuestbook({
     } catch {}
   }, [])
 
+  const handleReactionClick = (entryId: string, entryName: string, reaction: ReactionItem) => {
+    onPlayTick?.()
+    triggerHaptic('selection')
+
+    setReactions((prev) => {
+      const entryReactions = prev[entryId] || {}
+      const current = entryReactions[reaction.key] || { count: reaction.defaultCount, reacted: false }
+      const newReacted = !current.reacted
+      const newCount = newReacted ? current.count + 1 : Math.max(0, current.count - 1)
+
+      const updated = {
+        ...prev,
+        [entryId]: {
+          ...entryReactions,
+          [reaction.key]: {
+            count: newCount,
+            reacted: newReacted,
+          },
+        },
+      }
+
+      try {
+        localStorage.setItem('alice_guestbook_reactions_v2', JSON.stringify(updated))
+      } catch {}
+
+      if (newReacted) {
+        onTriggerToast?.(`${reaction.emoji} Sealed "${reaction.label}" on ${entryName}'s review!`)
+      }
+
+      return updated
+    })
+  }
+
+  const handleGlobalSeal = (key: string, label: string, emoji: string) => {
+    onPlayTick?.()
+    triggerHaptic('medium')
+
+    setVisitorSeals((prev) => {
+      const updated = { ...prev, [key]: (prev[key] || 100) + 1 }
+      try {
+        localStorage.setItem('alice_visitor_seals_v2', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+    onTriggerToast?.(`${emoji} Sealed Archive Affection: "${label}"!`)
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!formName.trim() || !formNote.trim()) return
 
     onPlayTick?.()
+    triggerHaptic('success')
 
     const now = new Date()
-    const dateFormatted = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })} ${now.getFullYear()} • Just now`
+    const dateFormatted = `${now.getDate()} ${now.toLocaleString('default', { month: 'short' })} ${now.getFullYear()} &bull; Just now`
 
+    const newId = `end-${Date.now()}`
     const newEntry: GuestbookEntry = {
-      id: `end-${Date.now()}`,
+      id: newId,
       name: formName.trim(),
       role: formRole.trim() || 'Archival Visitor & Critic',
       location: formLocation.trim() || 'Global Atelier',
@@ -142,10 +249,21 @@ export function ArchivalGuestbook({
 
     const updated = [newEntry, ...entries]
     setEntries(updated)
-    setActiveTab('All') // Switch to All tab so new submission is visible immediately
+    setActiveTab('All')
     try {
       localStorage.setItem('alice_archive_guestbook_notes', JSON.stringify(updated))
     } catch {}
+
+    // Initialize reaction bucket for new entry
+    setReactions((prev) => ({
+      ...prev,
+      [newId]: {
+        awwwards: { count: 1, reacted: true },
+        poetry: { count: 0, reacted: false },
+        iconic: { count: 1, reacted: true },
+        archival: { count: 1, reacted: true },
+      },
+    }))
 
     setFormSubmitted(true)
     onTriggerToast?.("Endorsement permanently sealed in archive")
@@ -185,7 +303,7 @@ export function ArchivalGuestbook({
               Archival Guestbook <span className="italic font-serif">&amp; Endorsements</span>
             </h2>
             <p className="text-sm sm:text-base text-[#efeee9]/70 font-light max-w-xl leading-relaxed">
-              Official evaluations, curator commentary, and visitor signatures permanently recorded in Alice&apos;s creative archive.
+              Official evaluations, curator commentary, and tactile visitor reactions permanently recorded in Alice&apos;s creative archive.
             </p>
           </div>
 
@@ -206,9 +324,45 @@ export function ArchivalGuestbook({
           </div>
         </div>
 
+        {/* Tactile Visitor Quick Stamp Seal Ribbon */}
+        <div className="p-4 rounded-2xl bg-black/50 border border-[#efeee9]/15 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <Sparkles size={16} className="text-[#ffaa22] shrink-0" />
+            <div className="text-xs font-mono">
+              <span className="text-[#efeee9] font-medium uppercase tracking-wider block">
+                Instant Archival Seal
+              </span>
+              <span className="text-[#efeee9]/50 text-[11px]">
+                Tap to stamp your personal seal of distinction onto the archive:
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { key: 'sotd', emoji: '🏆', label: 'Site of the Day Nominee' },
+              { key: 'poetry', emoji: '✨', label: 'Pure Poetry' },
+              { key: 'museum', emoji: '🖤', label: 'Museum Grade' },
+              { key: 'authentic', emoji: '📜', label: 'Authentic 35mm' },
+            ].map((seal) => (
+              <button
+                key={seal.key}
+                onClick={() => handleGlobalSeal(seal.key, seal.label, seal.emoji)}
+                className="px-3 py-1.5 rounded-full bg-white/5 hover:bg-[#efeee9] text-[#efeee9] hover:text-black border border-[#efeee9]/15 text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 min-h-[36px]"
+              >
+                <span>{seal.emoji}</span>
+                <span className="hidden xs:inline">{seal.label}</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[10px] font-bold">
+                  {visitorSeals[seal.key] || 100}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Guestbook Form & Submission */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-12 items-start">
-          {/* Left Column: Form (4 cols on lg) */}
+          {/* Left Column: Form (5 cols on lg) */}
           <div className="lg:col-span-5 bg-[#141414] border border-[#efeee9]/20 rounded-2xl p-6 sm:p-8 space-y-6 shadow-xl">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-[#ffaa22]">
@@ -358,6 +512,7 @@ export function ArchivalGuestbook({
                     key={tab}
                     onClick={() => {
                       onPlayTick?.()
+                      triggerHaptic('light')
                       setActiveTab(tab)
                     }}
                     className={`px-3.5 py-1.5 rounded-full text-xs font-mono uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer min-h-[38px] ${
@@ -372,56 +527,93 @@ export function ArchivalGuestbook({
               })}
             </div>
 
-            {/* List of Endorsement Cards */}
-            <div className="space-y-4 max-h-[640px] overflow-y-auto pr-1 no-scrollbar">
+            {/* List of Endorsement Cards with 3D Perspective Tilt and Interactive Reactions */}
+            <div className="space-y-4 max-h-[660px] overflow-y-auto pr-1 no-scrollbar">
               {filteredEntries.map((item) => (
-                <article
+                <Perspective3DCard
                   key={item.id}
-                  className="bg-[#121212]/90 hover:bg-[#161616] border border-[#efeee9]/15 hover:border-[#efeee9]/35 rounded-xl p-5 space-y-3 transition-all duration-300 shadow-sm"
+                  maxTilt={4}
+                  scale={1.01}
+                  maxGlareOpacity={0.15}
+                  className="rounded-xl overflow-hidden"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-medium text-[#efeee9]">{item.name}</h4>
-                        {item.isVerified && (
-                          <span
-                            title="Verified Archival Juror / Contributor"
-                            className="text-[#ffaa22] flex items-center"
-                          >
-                            <ShieldCheck size={14} />
+                  <article className="bg-[#121212]/90 hover:bg-[#151515] border border-[#efeee9]/15 hover:border-[#efeee9]/35 rounded-xl p-5 space-y-3 transition-colors duration-300 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-medium text-[#efeee9]">{item.name}</h4>
+                          {item.isVerified && (
+                            <span
+                              title="Verified Archival Juror / Contributor"
+                              className="text-[#ffaa22] flex items-center"
+                            >
+                              <ShieldCheck size={14} />
+                            </span>
+                          )}
+                          <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-white/5 border border-[#efeee9]/10 text-[#efeee9]/60">
+                            {item.category}
                           </span>
-                        )}
-                        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-white/5 border border-[#efeee9]/10 text-[#efeee9]/60">
-                          {item.category}
-                        </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[11px] font-mono text-[#efeee9]/60">
+                          <span>{item.role}</span>
+                          <span>&bull;</span>
+                          <span className="flex items-center gap-1">
+                            <MapPin size={10} />
+                            <span>{item.location}</span>
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] font-mono text-[#efeee9]/60">
-                        <span>{item.role}</span>
+
+                      {/* Score Badge */}
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#ffaa22]/15 border border-[#ffaa22]/30 text-[#ffaa22] font-mono text-xs font-semibold shrink-0">
+                        <Star size={11} fill="currentColor" />
+                        <span>{item.score.toFixed(1)}</span>
+                      </div>
+                    </div>
+
+                    {/* Note Quote */}
+                    <p className="text-xs sm:text-sm text-[#efeee9]/80 font-light leading-relaxed italic">
+                      &ldquo;{item.note}&rdquo;
+                    </p>
+
+                    {/* Interactive Guestbook Reactions Ribbon */}
+                    <div className="pt-3 border-t border-[#efeee9]/10 flex flex-wrap items-center justify-between gap-2.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {REACTION_CONFIG.map((rc) => {
+                          const itemState = reactions[item.id]?.[rc.key] || {
+                            count: rc.defaultCount,
+                            reacted: false,
+                          }
+                          return (
+                            <button
+                              key={rc.key}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleReactionClick(item.id, item.name, rc)
+                              }}
+                              title={`Seal "${rc.label}" reaction`}
+                              className={`px-2.5 py-1 rounded-full text-[11px] font-mono flex items-center gap-1.5 transition-all cursor-pointer border min-h-[32px] select-none active:scale-95 ${
+                                itemState.reacted
+                                  ? 'bg-[#ffaa22]/20 border-[#ffaa22]/60 text-[#ffaa22] font-semibold shadow-[0_0_12px_rgba(255,170,34,0.3)] scale-[1.03]'
+                                  : 'bg-white/5 border-[#efeee9]/10 text-[#efeee9]/60 hover:text-[#efeee9] hover:bg-white/10 hover:border-[#efeee9]/30'
+                              }`}
+                            >
+                              <span>{rc.emoji}</span>
+                              <span>{itemState.count}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <div className="flex items-center gap-3 text-[10px] font-mono text-[#efeee9]/40">
+                        <span dangerouslySetInnerHTML={{ __html: item.timestamp }} />
                         <span>&bull;</span>
-                        <span className="flex items-center gap-1">
-                          <MapPin size={10} />
-                          <span>{item.location}</span>
-                        </span>
+                        <span className="uppercase tracking-widest text-emerald-400/80">Archived</span>
                       </div>
                     </div>
-
-                    {/* Score Badge */}
-                    <div className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#ffaa22]/15 border border-[#ffaa22]/30 text-[#ffaa22] font-mono text-xs font-semibold shrink-0">
-                      <Star size={11} fill="currentColor" />
-                      <span>{item.score.toFixed(1)}</span>
-                    </div>
-                  </div>
-
-                  {/* Note Quote */}
-                  <p className="text-xs sm:text-sm text-[#efeee9]/80 font-light leading-relaxed italic">
-                    &ldquo;{item.note}&rdquo;
-                  </p>
-
-                  <div className="pt-2 border-t border-[#efeee9]/10 flex items-center justify-between text-[10px] font-mono text-[#efeee9]/40">
-                    <span dangerouslySetInnerHTML={{ __html: item.timestamp }} />
-                    <span className="uppercase tracking-widest text-emerald-400/80">Archived Record</span>
-                  </div>
-                </article>
+                  </article>
+                </Perspective3DCard>
               ))}
             </div>
           </div>

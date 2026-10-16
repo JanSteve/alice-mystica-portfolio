@@ -30,7 +30,8 @@ import {
   ChevronDown,
   Disc3,
   Play,
-  Pause
+  Pause,
+  Search
 } from 'lucide-react'
 
 import { MagneticButton } from './components/MagneticButton'
@@ -41,6 +42,10 @@ import { boutiqueSoundEngine } from './audio/AllTheStarsSoundscape'
 import { BoutiqueAudioCapsule } from './components/BoutiqueAudioCapsule'
 import { AwwwardsJuryAccolade } from './components/AwwwardsJuryAccolade'
 import { ArchivalGuestbook } from './components/ArchivalGuestbook'
+import { Perspective3DCard } from './components/Perspective3DCard'
+import { CommandPaletteModal, downloadCuratedPressKit } from './components/CommandPaletteModal'
+import { DigicamShutterFlash, copyArchivalMetadata } from './components/DigicamShutterFlash'
+import { triggerHaptic } from './utils/haptics'
 
 // =========================================================================
 // R ALICE MYSTICA — THE CREATIVE ARCHIVE
@@ -438,6 +443,7 @@ function MobileBottomBar({
   onOpenJuryDrawer,
   atmosphere,
   onToggleAtmosphere,
+  onOpenCommandPalette,
 }: {
   activeSection: string
   sections: SectionItem[]
@@ -447,33 +453,65 @@ function MobileBottomBar({
   onOpenJuryDrawer: () => void
   atmosphere: 'noir' | 'linen'
   onToggleAtmosphere: () => void
+  onOpenCommandPalette: () => void
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [touchStartY, setTouchStartY] = useState<number | null>(null)
+  const [dragOffset, setDragOffset] = useState<number>(0)
+
   const currentMeta = sections.find((s) => s.id === activeSection) || sections[0]
   const currentIndex = sections.findIndex((s) => s.id === activeSection)
   const nextSection = sections[(currentIndex + 1) % sections.length]
 
   return (
     <>
-      {/* Mobile Chapter Switcher Bottom Sheet Modal */}
+      {/* Mobile Chapter Switcher Bottom Sheet Modal with Drag-to-Dismiss */}
       {sheetOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md sm:hidden animate-fade-in flex flex-col justify-end"
-          onClick={() => setSheetOpen(false)}
+          onClick={() => {
+            setSheetOpen(false)
+            setDragOffset(0)
+          }}
         >
           <div
+            style={{
+              transform: `translateY(${Math.max(0, dragOffset)}px)`,
+              transition: dragOffset === 0 ? 'transform 0.25s cubic-bezier(0.2, 0.8, 0.4, 1)' : 'none',
+            }}
+            onTouchStart={(e) => {
+              setTouchStartY(e.touches[0].clientY)
+            }}
+            onTouchMove={(e) => {
+              if (touchStartY !== null) {
+                const delta = e.touches[0].clientY - touchStartY
+                if (delta > 0) setDragOffset(delta)
+              }
+            }}
+            onTouchEnd={() => {
+              if (dragOffset > 75) {
+                setSheetOpen(false)
+                soundEngine.playTick()
+                triggerHaptic('light')
+              }
+              setDragOffset(0)
+              setTouchStartY(null)
+            }}
             className="bg-[#121212] border-t border-[#efeee9]/20 rounded-t-2xl p-5 pb-8 space-y-4 max-h-[75vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Grab handle */}
-            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto" />
+            <div className="w-10 h-1 bg-white/25 rounded-full mx-auto" />
 
             <div className="flex items-center justify-between pb-3 border-b border-[#efeee9]/15">
               <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-[#efeee9]/60">
                 Archive Chapters
               </span>
               <button
-                onClick={() => setSheetOpen(false)}
+                onClick={() => {
+                  setSheetOpen(false)
+                  setDragOffset(0)
+                }}
                 className="p-1.5 text-[#efeee9]/60 hover:text-[#efeee9] min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
                 aria-label="Close chapter menu"
               >
@@ -487,6 +525,7 @@ function MobileBottomBar({
                 onClick={() => {
                   onToggleAtmosphere()
                   soundEngine.playTick()
+                  triggerHaptic('light')
                 }}
                 className="flex-1 py-2 px-3 rounded-lg border border-[#efeee9]/15 bg-white/5 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 min-h-[44px] active:scale-95 transition-all cursor-pointer"
               >
@@ -499,6 +538,7 @@ function MobileBottomBar({
                   setSheetOpen(false)
                   onOpenJuryDrawer()
                   soundEngine.playTick()
+                  triggerHaptic('medium')
                 }}
                 className="py-2 px-3 rounded-lg border border-[#ffaa22]/30 bg-[#ffaa22]/15 text-[#ffaa22] font-mono text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 min-h-[44px] active:scale-95 transition-all cursor-pointer"
               >
@@ -515,6 +555,7 @@ function MobileBottomBar({
                     onClick={() => {
                       onNavigate(sec.id)
                       setSheetOpen(false)
+                      triggerHaptic('light')
                     }}
                     className={`w-full px-4 py-3 rounded-lg border text-left flex items-center justify-between transition-all cursor-pointer min-h-[44px] ${
                       isActive
@@ -546,21 +587,36 @@ function MobileBottomBar({
         aria-label="Mobile quick actions"
         className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] inset-x-3 z-40 sm:hidden pointer-events-auto"
       >
-        <div className="bg-[#121212]/95 backdrop-blur-xl border border-[#efeee9]/25 rounded-full px-3 py-2 shadow-2xl flex items-center justify-between gap-1.5">
+        <div className="bg-[#121212]/95 backdrop-blur-xl border border-[#efeee9]/25 rounded-full px-2.5 py-1.5 shadow-2xl flex items-center justify-between gap-1.5">
           {/* Chapter Quick Switcher Button */}
           <button
             onClick={() => {
               setSheetOpen(!sheetOpen)
               soundEngine.playTick()
+              triggerHaptic('light')
             }}
             aria-label="Open chapter navigation switcher"
-            className="flex items-center gap-2 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity cursor-pointer min-h-[44px] px-2.5 bg-white/5 border border-[#efeee9]/15 rounded-full active:scale-95"
+            className="flex items-center gap-1.5 text-[#efeee9] font-mono text-[11px] uppercase tracking-wider hover:opacity-80 transition-opacity cursor-pointer min-h-[44px] px-2.5 bg-white/5 border border-[#efeee9]/15 rounded-full active:scale-95"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="truncate max-w-[110px]">
+            <span className="truncate max-w-[100px]">
               {currentMeta.number}. {currentMeta.navLabel}
             </span>
             <ChevronDown size={12} className="opacity-60 shrink-0" />
+          </button>
+
+          {/* Spotlight / Command Palette Button */}
+          <button
+            onClick={() => {
+              onOpenCommandPalette()
+              soundEngine.playTick()
+              triggerHaptic('light')
+            }}
+            aria-label="Open Spotlight Command Palette (Cmd+K)"
+            title="Spotlight Search"
+            className="p-2 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+          >
+            <Search size={14} />
           </button>
 
           {/* Advance to Next Chapter Button */}
@@ -568,6 +624,7 @@ function MobileBottomBar({
             onClick={() => {
               onNavigate(nextSection.id)
               soundEngine.playTick()
+              triggerHaptic('light')
             }}
             aria-label={`Advance to next chapter: ${nextSection.title}`}
             title={`Next: ${nextSection.title}`}
@@ -581,6 +638,7 @@ function MobileBottomBar({
             onClick={() => {
               onNavigate('contact')
               soundEngine.playTick()
+              triggerHaptic('light')
             }}
             className={`px-3 py-2 rounded-full font-mono text-[10px] uppercase tracking-widest transition-all cursor-pointer min-h-[44px] flex items-center justify-center active:scale-95 ${
               activeSection === 'contact'
@@ -596,6 +654,7 @@ function MobileBottomBar({
             onClick={() => {
               onScrollToTop()
               soundEngine.playTick()
+              triggerHaptic('light')
             }}
             aria-label="Scroll back to top"
             className="px-2.5 py-2 rounded-full bg-white/10 border border-[#efeee9]/20 text-[#efeee9] hover:bg-[#efeee9] hover:text-black active:scale-95 transition-all flex items-center gap-1 min-h-[44px]"
@@ -955,9 +1014,10 @@ interface ParallaxPhotoCardProps {
   index: number
   onOpen: () => void
   digicamEnabled: boolean
+  onTriggerShutter: (photo: ArchivalPhoto) => void
 }
 
-function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhotoCardProps) {
+function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled, onTriggerShutter }: ParallaxPhotoCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imageWrapperRef = useRef<HTMLDivElement>(null)
 
@@ -1003,73 +1063,89 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled }: ParallaxPhot
   }, [])
 
   return (
-    <div
-      ref={containerRef}
-      onClick={onOpen}
-      className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.08)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
+    <Perspective3DCard
+      maxTilt={5}
+      scale={1.012}
+      maxGlareOpacity={0.2}
+      className="h-full rounded-none"
     >
-      {/* Image Container with Scroll-Driven Parallax Translation */}
-      <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
-        <div
-          ref={imageWrapperRef}
-          className="absolute -top-[12%] -bottom-[12%] inset-x-0 w-full h-[124%] will-change-transform"
-        >
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
-          />
+      <div
+        ref={containerRef}
+        onClick={onOpen}
+        className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.08)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
+      >
+        {/* Image Container with Scroll-Driven Parallax Translation */}
+        <div className={`relative overflow-hidden bg-black ${item.aspectRatio}`}>
+          <div
+            ref={imageWrapperRef}
+            className="absolute -top-[12%] -bottom-[12%] inset-x-0 w-full h-[124%] will-change-transform"
+          >
+            <img
+              src={item.image}
+              alt={item.title}
+              loading="lazy"
+              className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
+            />
+          </div>
+
+          {/* Subtle Dark Vignette Overlay on Hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+          {/* Badge Overlay */}
+          <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10">
+            {item.badge}
+          </div>
+
+          {/* Vintage Digicam REC & Battery indicator */}
+          {digicamEnabled && (
+            <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10 flex items-center gap-1.5 pointer-events-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span className="text-red-400 font-bold">REC</span>
+              <span className="opacity-40">|</span>
+              <Battery size={11} className="text-emerald-400" />
+            </div>
+          )}
+
+          {/* Interactive Digicam Quartz Amber Timestamp & Tactile Shutter Action */}
+          {digicamEnabled && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onTriggerShutter(item)
+              }}
+              title="Click for tactile digicam shutter flash & copy archival metadata"
+              className="absolute bottom-3 left-3 bg-black/85 hover:bg-black px-2.5 py-1 rounded border border-[#ffaa22]/40 hover:border-[#ffaa22] z-20 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 group/shutter shadow-lg pointer-events-auto"
+            >
+              <Camera size={11} className="text-[#ffaa22] group-hover/shutter:scale-110 transition-transform" />
+              <span className="font-mono text-[11px] font-bold tracking-widest text-[#ffaa22] digicam-glow">
+                {item.digicamStamp}
+              </span>
+            </button>
+          )}
+
+          {/* Quick View Button */}
+          <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300 z-10">
+            <span>{item.date}</span>
+            <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          </div>
         </div>
 
-        {/* Subtle Dark Vignette Overlay on Hover */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-
-        {/* Badge Overlay */}
-        <div className="absolute top-3 left-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10">
-          {item.badge}
-        </div>
-
-        {/* Vintage Digicam REC & Battery indicator */}
-        {digicamEnabled && (
-          <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm px-2 py-0.5 text-[9px] font-mono tracking-widest uppercase text-[#efeee9] border border-[#efeee9]/20 z-10 flex items-center gap-1.5 pointer-events-none">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-red-400 font-bold">REC</span>
-            <span className="opacity-40">|</span>
-            <Battery size={11} className="text-emerald-400" />
+        {/* Caption Details */}
+        <div className="p-6 space-y-2 border-t border-[#efeee9]/10 bg-[#0f0f0f]/40">
+          <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
+            <span>{item.tag}</span>
+            <span>Frame 0{index + 1} / 0{ARCHIVAL_GALLERY.length}</span>
           </div>
-        )}
-
-        {/* Digicam Quartz Amber Timestamp */}
-        {digicamEnabled && (
-          <div className="absolute bottom-3 left-3 bg-black/75 px-2 py-0.5 rounded border border-[#ffaa22]/30 z-10 pointer-events-none">
-            <span className="font-mono text-[11px] font-bold tracking-widest text-[#ffaa22] digicam-glow">
-              {item.digicamStamp}
-            </span>
-          </div>
-        )}
-
-        {/* Quick View Button */}
-        <div className="absolute bottom-3 right-3 bg-black/80 backdrop-blur-sm px-2.5 py-1 text-[10px] font-mono tracking-wider uppercase text-[#efeee9]/80 border border-[#efeee9]/20 flex items-center gap-1.5 group-hover:bg-[#efeee9] group-hover:text-black group-hover:border-[#efeee9] transition-all duration-300 z-10">
-          <span>{item.date}</span>
-          <ArrowUpRight size={12} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+          <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:text-[#efeee9] transition-colors">
+            {item.title}
+          </h4>
+          <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
+            {item.caption}
+          </p>
         </div>
       </div>
-
-      {/* Caption Details */}
-      <div className="p-6 space-y-2 border-t border-[#efeee9]/10 bg-[#0f0f0f]/40">
-        <div className="flex items-center justify-between text-xs text-[#efeee9]/50 font-mono uppercase tracking-widest">
-          <span>{item.tag}</span>
-          <span>Frame 0{index + 1} / 0{ARCHIVAL_GALLERY.length}</span>
-        </div>
-        <h4 className="text-xl font-normal text-[#efeee9] tracking-tight group-hover:text-[#efeee9] transition-colors">
-          {item.title}
-        </h4>
-        <p className="text-xs sm:text-sm text-[#efeee9]/70 font-light leading-relaxed">
-          {item.caption}
-        </p>
-      </div>
-    </div>
+    </Perspective3DCard>
   )
 }
 
@@ -1095,6 +1171,8 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
   const [juryDrawerOpen, setJuryDrawerOpen] = useState(false)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [shutterFlashing, setShutterFlashing] = useState(false)
   const [atmosphere, setAtmosphere] = useState<'noir' | 'linen'>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -1104,6 +1182,53 @@ export default function App() {
     }
     return 'noir'
   })
+
+  // Global keyboard shortcut listener for Command Palette (Cmd+K / Ctrl+K and /)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setCommandPaletteOpen((prev) => !prev)
+        return
+      }
+
+      if (e.key === '/' && !commandPaletteOpen) {
+        const target = e.target as HTMLElement | null
+        const isInput =
+          target?.tagName === 'INPUT' ||
+          target?.tagName === 'TEXTAREA' ||
+          target?.tagName === 'SELECT' ||
+          target?.isContentEditable
+        if (!isInput) {
+          e.preventDefault()
+          setCommandPaletteOpen(true)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [commandPaletteOpen])
+
+  const handleTriggerShutter = (photo?: ArchivalPhoto) => {
+    setShutterFlashing(true)
+    soundEngine.playShutterSound()
+    triggerHaptic('shutter')
+    if (photo) {
+      copyArchivalMetadata({
+        title: photo.title,
+        archiveRef: photo.specs.archiveRef,
+        date: photo.date,
+        digicamStamp: photo.digicamStamp,
+        medium: photo.specs.medium,
+        colorProfile: photo.specs.colorProfile,
+        iso: photo.specs.iso,
+      })
+      triggerToast(`📸 Digicam Frame Captured & Metadata Copied!`)
+    } else {
+      triggerToast('📸 Digicam Shutter Actuated!')
+    }
+  }
 
   // Global one-time interaction listener for modern browser autoplay policies (pointerdown/touchstart/click/keydown)
   useEffect(() => {
@@ -1507,12 +1632,44 @@ export default function App() {
         onOpenJuryDrawer={() => setJuryDrawerOpen(true)}
         atmosphere={atmosphere}
         onToggleAtmosphere={toggleAtmosphere}
+        onOpenCommandPalette={() => setCommandPaletteOpen(true)}
       />
 
       {/* =========================================================================
           6. TACTILE TOAST NOTIFICATION
           ========================================================================= */}
       <ToastNotification message={toastMsg} isVisible={toastVisible} />
+
+      {/* =========================================================================
+          6B. AUTHENTIC DIGICAM SHUTTER SCREEN FLASH ANIMATION OVERLAY
+          ========================================================================= */}
+      <DigicamShutterFlash
+        isFlashing={shutterFlashing}
+        onFlashEnd={() => setShutterFlashing(false)}
+      />
+
+      {/* =========================================================================
+          6C. INTERACTIVE GLOBAL COMMAND PALETTE / SPOTLIGHT (Cmd+K / Ctrl+K / /)
+          Framer-style quick launcher with fuzzy search and archival actions
+          ========================================================================= */}
+      <CommandPaletteModal
+        isOpen={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        onNavigate={(id) => handleNavClick(id)}
+        isPlayingSound={isPlayingSound}
+        onToggleSound={toggleSound}
+        atmosphere={atmosphere}
+        onToggleAtmosphere={toggleAtmosphere}
+        onOpenJuryDrawer={() => setJuryDrawerOpen(true)}
+        digicamEnabled={digicamEnabled}
+        onToggleDigicam={() => {
+          setDigicamEnabled(!digicamEnabled)
+          triggerToast(digicamEnabled ? 'Digicam stamp: OFF' : 'Digicam stamp: ACTIVE')
+        }}
+        onTriggerShutterFlash={() => handleTriggerShutter(ARCHIVAL_GALLERY[0])}
+        onOpenLightbox={(idx) => openLightbox(idx)}
+        onTriggerToast={triggerToast}
+      />
 
       {/* =========================================================================
           7. AWWWARDS OFFICIAL JURY EVALUATION & ACCOLADE BADGE
@@ -1643,7 +1800,27 @@ export default function App() {
         </div>
 
         {/* Actions & Desktop Navigation */}
-        <div className="flex items-center gap-2 sm:gap-4 lg:gap-5">
+        <div className="flex items-center gap-2 sm:gap-3 lg:gap-4">
+          {/* Spotlight / Command Palette Quick Trigger Pill */}
+          <MagneticButton strength={0.25}>
+            <button
+              onClick={() => {
+                setCommandPaletteOpen(true)
+                soundEngine.playTick()
+                triggerHaptic('light')
+              }}
+              aria-label="Open Spotlight Command Palette (Cmd+K)"
+              title="Spotlight Search & Actions (Cmd+K or /)"
+              className="px-2.5 sm:px-3 py-1.5 rounded-full border border-[#efeee9]/20 bg-[#141414]/90 hover:bg-[#efeee9] text-[#efeee9]/80 hover:text-black hover:border-[#efeee9] transition-all cursor-pointer flex items-center gap-1.5 sm:gap-2 min-h-[40px] text-xs font-mono active:scale-95 group shadow-sm"
+            >
+              <Search size={13} className="opacity-70 group-hover:opacity-100" />
+              <span className="hidden md:inline">Spotlight</span>
+              <kbd className="hidden md:inline-block px-1.5 py-0.2 rounded bg-white/10 group-hover:bg-black/10 border border-[#efeee9]/20 text-[10px] font-mono">
+                ⌘K
+              </kbd>
+            </button>
+          </MagneticButton>
+
           {/* Atmosphere Mode Switcher */}
           <MagneticButton strength={0.25}>
             <AtmosphereToggle atmosphere={atmosphere} onToggle={toggleAtmosphere} />
@@ -2269,6 +2446,7 @@ export default function App() {
                   index={index}
                   onOpen={() => openLightbox(index)}
                   digicamEnabled={digicamEnabled}
+                  onTriggerShutter={handleTriggerShutter}
                 />
               </Reveal>
             ))}
@@ -2321,80 +2499,101 @@ export default function App() {
             <RevealRule delay={150} />
           </div>
 
-          {/* Milestones Cards with Staggered Viewport Reveals */}
+          {/* Milestones Cards with Staggered Viewport Reveals & 3D Perspective Tilt */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Milestone 01 */}
             <Reveal delay={100}>
-              <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
-                      Milestone 01
-                    </span>
-                    <Award size={20} className="text-[#efeee9]/60" />
+              <Perspective3DCard
+                maxTilt={6}
+                scale={1.01}
+                maxGlareOpacity={0.18}
+                className="h-full rounded-none"
+              >
+                <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
+                        Milestone 01
+                      </span>
+                      <Award size={20} className="text-[#efeee9]/60" />
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
+                      An Interaction with the Hon’ble Finance Minister of India
+                    </h3>
+                    <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
+                      Smt. Nirmala Sitharaman
+                    </h4>
+                    <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
+                      Had the opportunity to meet and interact with the Hon’ble Finance Minister of India, Smt. Nirmala Sitharaman. This was a memorable milestone that strengthened my interest in communication, public engagement, leadership, and learning from distinguished personalities.
+                    </p>
                   </div>
-                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
-                    An Interaction with the Hon’ble Finance Minister of India
-                  </h3>
-                  <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
-                    Smt. Nirmala Sitharaman
-                  </h4>
-                  <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
-                    Had the opportunity to meet and interact with the Hon’ble Finance Minister of India, Smt. Nirmala Sitharaman. This was a memorable milestone that strengthened my interest in communication, public engagement, leadership, and learning from distinguished personalities.
-                  </p>
-                </div>
 
-                <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Leadership</span>
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Engagement</span>
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">National Dialogue</span>
+                  <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Leadership</span>
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Engagement</span>
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">National Dialogue</span>
+                  </div>
                 </div>
-              </div>
+              </Perspective3DCard>
             </Reveal>
 
             {/* Milestone 02 */}
             <Reveal delay={200}>
-              <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
-                      Milestone 02
-                    </span>
-                    <Award size={20} className="text-[#efeee9]/60" />
+              <Perspective3DCard
+                maxTilt={6}
+                scale={1.01}
+                maxGlareOpacity={0.18}
+                className="h-full rounded-none"
+              >
+                <div className="p-8 sm:p-10 bg-black/50 border border-[#efeee9]/20 hover:border-[#efeee9]/50 hover:shadow-[0_0_25px_rgba(239,238,233,0.05)] transition-all duration-300 flex flex-col justify-between space-y-6 h-full">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50">
+                        Milestone 02
+                      </span>
+                      <Award size={20} className="text-[#efeee9]/60" />
+                    </div>
+                    <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
+                      Second Prize &mdash; CBSE Storytelling Competition
+                    </h3>
+                    <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
+                      Creative Narration &amp; Expression
+                    </h4>
+                    <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
+                      Received Second Prize in a CBSE Storytelling Competition, recognising my interest in storytelling, creative expression, and effective communication. This achievement reflects my enthusiasm for presenting ideas, engaging an audience, and expressing narratives with confidence.
+                    </p>
                   </div>
-                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9] tracking-tight">
-                    Second Prize &mdash; CBSE Storytelling Competition
-                  </h3>
-                  <h4 className="text-base font-normal text-[#efeee9]/80 tracking-wide pb-2 border-b border-[#efeee9]/10">
-                    Creative Narration &amp; Expression
-                  </h4>
-                  <p className="text-sm sm:text-base text-[#efeee9]/80 font-light leading-relaxed">
-                    Received Second Prize in a CBSE Storytelling Competition, recognising my interest in storytelling, creative expression, and effective communication. This achievement reflects my enthusiasm for presenting ideas, engaging an audience, and expressing narratives with confidence.
-                  </p>
-                </div>
 
-                <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Storytelling</span>
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Speaking</span>
-                  <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">CBSE Honors</span>
+                  <div className="pt-4 border-t border-[#efeee9]/10 flex flex-wrap gap-2 text-xs text-[#efeee9]/60 font-mono">
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Storytelling</span>
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">Public Speaking</span>
+                    <span className="px-2.5 py-1 bg-white/5 border border-[#efeee9]/15">CBSE Honors</span>
+                  </div>
                 </div>
-              </div>
+              </Perspective3DCard>
             </Reveal>
           </div>
 
           {/* Reflection: What These Experiences Mean to Me */}
           <Reveal delay={250}>
-            <div className="p-8 sm:p-12 bg-[#121212] border border-[#efeee9]/20 space-y-4 hover:border-[#efeee9]/40 transition-colors">
-              <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50 block">
-                Reflections &bull; Impact
-              </span>
-              <h4 className="text-xl sm:text-2xl font-normal text-[#efeee9]">
-                What These Experiences Mean to Me
-              </h4>
-              <p className="text-sm sm:text-base text-[#efeee9]/85 font-light leading-relaxed">
-                These milestones represent two important aspects of my journey: the confidence to express myself and the curiosity to learn from others. They continue to inspire me to explore public speaking, develop my communication skills, and pursue opportunities that challenge me to grow personally and professionally.
-              </p>
-            </div>
+            <Perspective3DCard
+              maxTilt={4}
+              scale={1.008}
+              maxGlareOpacity={0.14}
+              className="rounded-none"
+            >
+              <div className="p-8 sm:p-12 bg-[#121212] border border-[#efeee9]/20 space-y-4 hover:border-[#efeee9]/40 transition-colors">
+                <span className="text-xs font-mono uppercase tracking-[0.25em] text-[#efeee9]/50 block">
+                  Reflections &bull; Impact
+                </span>
+                <h4 className="text-xl sm:text-2xl font-normal text-[#efeee9]">
+                  What These Experiences Mean to Me
+                </h4>
+                <p className="text-sm sm:text-base text-[#efeee9]/85 font-light leading-relaxed">
+                  These milestones represent two important aspects of my journey: the confidence to express myself and the curiosity to learn from others. They continue to inspire me to explore public speaking, develop my communication skills, and pursue opportunities that challenge me to grow personally and professionally.
+                </p>
+              </div>
+            </Perspective3DCard>
           </Reveal>
         </div>
       </section>
@@ -2729,6 +2928,19 @@ export default function App() {
                   <SlidersHorizontal size={13} />
                   <span className="hidden xs:inline">Specs</span>
                 </button>
+
+                {/* Tactile Shutter Snapshot & Copy Button */}
+                <button
+                  onClick={() => {
+                    if (lightboxPhoto) handleTriggerShutter(lightboxPhoto)
+                  }}
+                  aria-label="Actuate digicam shutter and copy metadata"
+                  title="Shutter Snapshot & Copy Metadata"
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono uppercase tracking-wider transition-all cursor-pointer min-h-[36px] bg-white/5 text-[#ffaa22] border-[#ffaa22]/30 hover:bg-[#ffaa22] hover:text-black active:scale-95 shadow-sm"
+                >
+                  <Camera size={13} />
+                  <span>Snapshot</span>
+                </button>
               </div>
 
               <button
@@ -2818,13 +3030,22 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Digicam Vintage Quartz Amber Timestamp */}
+                {/* Digicam Vintage Quartz Amber Timestamp & Shutter Action */}
                 {digicamEnabled && (
-                  <div className="absolute bottom-3 right-3 bg-black/80 px-3 py-1 rounded border border-[#ffaa22]/30 z-10 pointer-events-none">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleTriggerShutter(lightboxPhoto)
+                    }}
+                    title="Click for tactile shutter flash & copy archival metadata"
+                    className="absolute bottom-3 right-3 bg-black/85 hover:bg-black px-3 py-1 rounded border border-[#ffaa22]/40 hover:border-[#ffaa22] z-20 cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 group/shutter shadow-xl pointer-events-auto"
+                  >
+                    <Camera size={12} className="text-[#ffaa22] group-hover/shutter:scale-110 transition-transform" />
                     <span className="font-mono text-xs sm:text-sm font-bold tracking-widest text-[#ffaa22] digicam-glow">
                       {lightboxPhoto.digicamStamp}
                     </span>
-                  </div>
+                  </button>
                 )}
 
                 {/* Archival Specs Drawer Overlay */}

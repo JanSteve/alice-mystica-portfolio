@@ -985,6 +985,86 @@ export class AllTheStarsBoutiqueSynthesizer {
     }
   }
 
+  // Return live Web Audio analyser node for canvas visualizers
+  public getAnalyser(): AnalyserNode | null {
+    return this.analyser
+  }
+
+  // Tactile Mechanical Digicam Shutter Sound (3-phase mirror slap, high blade snap & chassis rebound)
+  public playShutterSound() {
+    const ctx = this.getAudioContext()
+    if (!ctx) return
+    try {
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {})
+      }
+      const now = ctx.currentTime
+
+      // 1. Initial mechanical spring tension / mirror flip (t = 0)
+      const mirrorOsc = ctx.createOscillator()
+      const mirrorGain = ctx.createGain()
+      mirrorOsc.type = 'triangle'
+      mirrorOsc.frequency.setValueAtTime(460, now)
+      mirrorOsc.frequency.exponentialRampToValueAtTime(130, now + 0.028)
+
+      mirrorGain.gain.setValueAtTime(0.18, now)
+      mirrorGain.gain.exponentialRampToValueAtTime(0.001, now + 0.032)
+
+      mirrorOsc.connect(mirrorGain)
+      mirrorGain.connect(ctx.destination)
+      mirrorOsc.start(now)
+      mirrorOsc.stop(now + 0.035)
+
+      // 2. High-frequency shutter blade curtain snap (t = 0.02)
+      const buffer = this.getNoiseBuffer(ctx)
+      const noise = ctx.createBufferSource()
+      noise.buffer = buffer
+
+      const bladeFilter = ctx.createBiquadFilter()
+      bladeFilter.type = 'bandpass'
+      bladeFilter.frequency.setValueAtTime(3200, now + 0.02)
+      bladeFilter.Q.setValueAtTime(2.4, now + 0.02)
+
+      const bladeGain = ctx.createGain()
+      bladeGain.gain.setValueAtTime(0.22, now + 0.02)
+      bladeGain.gain.exponentialRampToValueAtTime(0.001, now + 0.075)
+
+      noise.connect(bladeFilter)
+      bladeFilter.connect(bladeGain)
+      bladeGain.connect(ctx.destination)
+
+      noise.start(now + 0.02)
+      noise.stop(now + 0.08)
+
+      // 3. Low chassis rebound thud (t = 0.045)
+      const thudOsc = ctx.createOscillator()
+      const thudGain = ctx.createGain()
+      thudOsc.type = 'sine'
+      thudOsc.frequency.setValueAtTime(150, now + 0.045)
+      thudOsc.frequency.exponentialRampToValueAtTime(42, now + 0.09)
+
+      thudGain.gain.setValueAtTime(0.12, now + 0.045)
+      thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.1)
+
+      thudOsc.connect(thudGain)
+      thudGain.connect(ctx.destination)
+      thudOsc.start(now + 0.045)
+      thudOsc.stop(now + 0.11)
+
+      setTimeout(() => {
+        try {
+          mirrorOsc.disconnect()
+          mirrorGain.disconnect()
+          noise.disconnect()
+          bladeFilter.disconnect()
+          bladeGain.disconnect()
+          thudOsc.disconnect()
+          thudGain.disconnect()
+        } catch {}
+      }, 150)
+    } catch {}
+  }
+
   // UI Tactile Click Tick
   public playTick() {
     const ctx = this.getAudioContext()

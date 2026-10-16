@@ -13,6 +13,8 @@ import {
   Minimize2
 } from 'lucide-react'
 import { boutiqueSoundEngine, EqualizerLevels } from '../audio/AllTheStarsSoundscape'
+import { AudioSpectrumCanvas } from './AudioSpectrumCanvas'
+import { triggerHaptic } from '../utils/haptics'
 
 interface BoutiqueAudioCapsuleProps {
   isPlaying: boolean
@@ -259,6 +261,21 @@ export function BoutiqueAudioCapsule({
                 <span>Upscale Boutique Filter &bull; 3.4kHz</span>
               </span>
               <span className="text-[10px] text-emerald-400 font-medium">Warm &bull; Minimal</span>
+            </div>
+
+            {/* Live Web Audio Real-Time Spectrum Canvas */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-widest text-[#efeee9]/60 px-0.5">
+                <span>Real-Time Spectrum</span>
+                <span className="text-[#ffaa22]">Web Audio API</span>
+              </div>
+              <AudioSpectrumCanvas
+                height={74}
+                accent="amber"
+                isPlaying={isPlaying}
+                onTogglePlay={onTogglePlay}
+                showControls={true}
+              />
             </div>
 
             {/* Volume Slider & Controls */}
