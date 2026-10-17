@@ -46,6 +46,11 @@ import { Perspective3DCard } from './components/Perspective3DCard'
 import { CommandPaletteModal, downloadCuratedPressKit } from './components/CommandPaletteModal'
 import { DigicamShutterFlash, copyArchivalMetadata } from './components/DigicamShutterFlash'
 import { triggerHaptic } from './utils/haptics'
+import { LiquidMagneticCursor } from './components/LiquidMagneticCursor'
+import { DigicamFilterSwitcher, type DigicamFilter, getDigicamFilterClass } from './components/DigicamFilterSwitcher'
+import { TabEqualizerFavicon } from './components/TabEqualizerFavicon'
+import { FramerBentoDisciplineGrid } from './components/FramerBentoDisciplineGrid'
+import { FloatingStarlightDust } from './components/FloatingStarlightDust'
 
 // =========================================================================
 // R ALICE MYSTICA — THE CREATIVE ARCHIVE
@@ -1015,9 +1020,10 @@ interface ParallaxPhotoCardProps {
   onOpen: () => void
   digicamEnabled: boolean
   onTriggerShutter: (photo: ArchivalPhoto) => void
+  filterClass?: string
 }
 
-function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled, onTriggerShutter }: ParallaxPhotoCardProps) {
+function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled, onTriggerShutter, filterClass }: ParallaxPhotoCardProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const imageWrapperRef = useRef<HTMLDivElement>(null)
 
@@ -1072,6 +1078,7 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled, onTriggerShutt
       <div
         ref={containerRef}
         onClick={onOpen}
+        data-cursor="zoom"
         className="group relative cursor-pointer bg-black/50 border border-[#efeee9]/15 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.08)] transition-all duration-500 overflow-hidden flex flex-col justify-between h-full"
       >
         {/* Image Container with Scroll-Driven Parallax Translation */}
@@ -1084,7 +1091,7 @@ function ParallaxPhotoCard({ item, index, onOpen, digicamEnabled, onTriggerShutt
               src={item.image}
               alt={item.title}
               loading="lazy"
-              className={`w-full h-full object-cover ${item.objectPosition} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
+              className={`w-full h-full object-cover ${item.objectPosition} ${filterClass || ''} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
             />
           </div>
 
@@ -1168,6 +1175,18 @@ export default function App() {
   const [showThemeBanner, setShowThemeBanner] = useState(true)
   const hasUserPausedRef = useRef<boolean>(false)
   const [digicamEnabled, setDigicamEnabled] = useState(true)
+  const [digicamFilter, setDigicamFilter] = useState<DigicamFilter>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('alice_digicam_sensor_filter') as DigicamFilter
+        if (saved && ['original', 'vintage-ccd', 'noir-monolith', 'flash-glow'].includes(saved)) {
+          return saved
+        }
+      } catch {}
+    }
+    return 'original'
+  })
+  const filterClass = getDigicamFilterClass(digicamFilter)
   const [toastMsg, setToastMsg] = useState('')
   const [toastVisible, setToastVisible] = useState(false)
   const [juryDrawerOpen, setJuryDrawerOpen] = useState(false)
@@ -1595,9 +1614,12 @@ export default function App() {
       <ReadingProgressBar progress={scrollProgress} />
 
       {/* =========================================================================
-          2. AMBIENT CURSOR SPOTLIGHT (Lerp Physics, Zero State Re-renders)
+          2. AMBIENT CURSOR & FRAMER INTERACTIVE POLISH SUITE
           ========================================================================= */}
+      <FloatingStarlightDust />
       <AmbientCursor />
+      <LiquidMagneticCursor isPlayingSound={isPlayingSound} />
+      <TabEqualizerFavicon isPlaying={isPlayingSound} />
 
       {/* =========================================================================
           3. DESKTOP CHAPTER RAIL INDICATOR (Visible from xl: 1280px+)
@@ -1687,11 +1709,13 @@ export default function App() {
           8. INTERACTIVE BOUTIQUE AUDIO CAPSULE ("ALL THE STARS")
           Curated Black Panther OST boutique mix with volume & equalizer
           ========================================================================= */}
-      <BoutiqueAudioCapsule
-        isPlaying={isPlayingSound}
-        onTogglePlay={toggleSound}
-        onPlayTick={() => soundEngine.playTick()}
-      />
+      <div data-cursor="play">
+        <BoutiqueAudioCapsule
+          isPlaying={isPlayingSound}
+          onTogglePlay={toggleSound}
+          onPlayTick={() => soundEngine.playTick()}
+        />
+      </div>
 
       {/* =========================================================================
           9. FLOATING "SOUND ON / PLAY THEME" INVITATION BANNER
@@ -1705,6 +1729,7 @@ export default function App() {
         >
           <div
             onClick={handleStartThemeBanner}
+            data-cursor="play"
             className="group relative p-3 sm:px-4 sm:py-3 rounded-2xl bg-[#111111]/95 hover:bg-[#161616] border border-[#ffaa22]/40 hover:border-[#ffaa22] shadow-[0_10px_35px_rgba(0,0,0,0.8),0_0_25px_rgba(255,170,34,0.25)] backdrop-blur-xl transition-all duration-300 flex items-center justify-between gap-3 cursor-pointer"
           >
             {/* Left disc & badge */}
@@ -2206,13 +2231,16 @@ export default function App() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-start">
             {/* Left Column: Portrait Showcase with Frame Hover Scale */}
             <Reveal delay={100} className="lg:col-span-5 space-y-5">
-              <div className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500">
+              <div
+                data-cursor="zoom"
+                className="relative group border border-[#efeee9]/20 overflow-hidden bg-black p-2 hover:border-[#efeee9]/60 hover:shadow-[0_0_30px_rgba(239,238,233,0.06)] transition-all duration-500 cursor-pointer"
+              >
                 <div className="relative overflow-hidden aspect-[4/5]">
                   <img
                     src={ASSETS.smilePortrait}
                     alt="Alice Mystica smiling portrait with (Can you kiss me more?)"
                     loading="lazy"
-                    className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-700 ease-editorial"
+                    className={`w-full h-full object-cover object-top ${filterClass} group-hover:scale-105 transition-transform duration-700 ease-editorial`}
                   />
                   <div className="absolute top-4 left-4 bg-black/70 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-widest text-[#efeee9] border border-[#efeee9]/20 font-mono">
                     Archive Ref &bull; 02
@@ -2313,51 +2341,25 @@ export default function App() {
           </div>
         </div>
 
-        {/* 3. Complete Discipline Directory for Linear Reference */}
+        {/* 3. Framer Bento Discipline Grid: 8-Dimension Asymmetric Interactive Showcase */}
         <div className="py-20 px-4 sm:px-12 lg:px-20 border-t border-[#efeee9]/10 bg-transparent">
-          <div className="max-w-6xl mx-auto space-y-8">
+          <div className="max-w-6xl mx-auto">
             <Reveal delay={0}>
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#efeee9]/15">
-                <div>
-                  <span className="text-xs uppercase tracking-[0.25em] text-[#efeee9]/50 block mb-1 font-mono">
-                    Linear Directory
-                  </span>
-                  <h3 className="text-2xl sm:text-3xl font-light text-[#efeee9]">
-                    All Eight Disciplines at a Glance
-                  </h3>
-                </div>
-                <p className="text-xs sm:text-sm text-[#efeee9]/60 max-w-sm">
-                  A reference catalog of Alice&apos;s creative pursuits, reflective practices, and avenues of expression.
-                </p>
-              </div>
+              <FramerBentoDisciplineGrid
+                interests={CREATIVE_INTERESTS}
+                isPlayingSound={isPlayingSound}
+                onToggleSound={toggleSound}
+                onLaunchVlog={() => {
+                  const el = document.getElementById('vlog-spotlight')
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }}
+                onViewPhotoWall={() => {
+                  const el = document.getElementById('archive')
+                  if (el) el.scrollIntoView({ behavior: 'smooth' })
+                }}
+                onPlayTick={() => soundEngine.playTick()}
+              />
             </Reveal>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {CREATIVE_INTERESTS.map((interest, idx) => {
-                const InterestIcon = interest.icon
-                return (
-                  <Reveal key={interest.number} delay={(idx % 2) * 120 + 100}>
-                    <div className="p-6 bg-black/40 border border-[#efeee9]/15 hover:border-[#efeee9]/45 hover:bg-black/60 transition-all duration-300 space-y-4 h-full flex flex-col justify-between">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-sm text-[#efeee9]/60">{interest.number}</span>
-                            <h4 className="text-lg font-normal text-[#efeee9]">{interest.title}</h4>
-                          </div>
-                          <InterestIcon size={18} className="text-[#efeee9]/40" />
-                        </div>
-                        <p className="text-sm text-[#efeee9]/75 font-light leading-relaxed">
-                          {interest.desc}
-                        </p>
-                      </div>
-                      <div className="pt-3 text-xs text-[#efeee9]/60 italic font-serif border-t border-[#efeee9]/10">
-                        &ldquo;{interest.quote}&rdquo;
-                      </div>
-                    </div>
-                  </Reveal>
-                )
-              })}
-            </div>
           </div>
         </div>
       </section>
@@ -2410,17 +2412,32 @@ export default function App() {
                   </MagneticButton>
                 </div>
               </div>
+
+              {/* Interactive Digicam Sensor Filter Switcher Matrix (4 Modes, 0.000 CLS) */}
+              <div className="pt-2">
+                <DigicamFilterSwitcher
+                  currentFilter={digicamFilter}
+                  onFilterChange={(newFilter) => {
+                    setDigicamFilter(newFilter)
+                    soundEngine.playTick()
+                    triggerToast(`Digicam Shader: ${newFilter}`)
+                  }}
+                  onPlayTick={() => soundEngine.playTick()}
+                />
+              </div>
             </Reveal>
             <RevealRule delay={150} />
           </div>
 
           {/* Interactive Draggable Archival Desk / Polaroid Moodboard Canvas */}
           <Reveal delay={100}>
-            <InteractiveArchivalDesk
-              onOpenLightbox={openLightbox}
-              onPlayTick={() => soundEngine.playTick()}
-              digicamEnabled={digicamEnabled}
-            />
+            <div className={`archival-desk-wrapper ${filterClass}`}>
+              <InteractiveArchivalDesk
+                onOpenLightbox={openLightbox}
+                onPlayTick={() => soundEngine.playTick()}
+                digicamEnabled={digicamEnabled}
+              />
+            </div>
           </Reveal>
 
           {/* Archival Wall Header */}
@@ -2447,6 +2464,7 @@ export default function App() {
                   onOpen={() => openLightbox(index)}
                   digicamEnabled={digicamEnabled}
                   onTriggerShutter={handleTriggerShutter}
+                  filterClass={filterClass}
                 />
               </Reveal>
             ))}
@@ -2941,6 +2959,18 @@ export default function App() {
                   <Camera size={13} />
                   <span>Snapshot</span>
                 </button>
+
+                {/* In-Lightbox Digicam Sensor Filter Switcher */}
+                <DigicamFilterSwitcher
+                  currentFilter={digicamFilter}
+                  onFilterChange={(newFilter) => {
+                    setDigicamFilter(newFilter)
+                    soundEngine.playTick()
+                    triggerToast(`Shader: ${newFilter}`)
+                  }}
+                  onPlayTick={() => soundEngine.playTick()}
+                  compact
+                />
               </div>
 
               <button
@@ -3015,7 +3045,7 @@ export default function App() {
                 <img
                   src={lightboxPhoto.image}
                   alt={lightboxPhoto.title}
-                  className={`max-h-[58vh] max-w-full object-contain pointer-events-none transition-transform duration-300 ${
+                  className={`max-h-[58vh] max-w-full object-contain pointer-events-none transition-transform duration-300 ${filterClass} ${
                     zoomLevel === 2 ? 'scale-100 cursor-zoom-out' : 'cursor-zoom-in'
                   }`}
                 />

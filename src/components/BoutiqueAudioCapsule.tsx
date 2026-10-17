@@ -12,7 +12,7 @@ import {
   Maximize2,
   Minimize2
 } from 'lucide-react'
-import { boutiqueSoundEngine, EqualizerLevels } from '../audio/AllTheStarsSoundscape'
+import { boutiqueSoundEngine, EqualizerLevels, STORAGE_KEY_VOLUME } from '../audio/AllTheStarsSoundscape'
 import { AudioSpectrumCanvas } from './AudioSpectrumCanvas'
 import { triggerHaptic } from '../utils/haptics'
 
@@ -22,15 +22,33 @@ interface BoutiqueAudioCapsuleProps {
   onPlayTick?: () => void
 }
 
+const getHydratedVolume = (): number => {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_VOLUME)
+      if (stored !== null) {
+        const parsed = parseFloat(stored)
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          return Math.round(parsed * 100)
+        }
+      }
+    } catch {}
+  }
+  return Math.round((boutiqueSoundEngine.volume ?? 0.55) * 100)
+}
+
 export function BoutiqueAudioCapsule({
   isPlaying,
   onTogglePlay,
   onPlayTick,
 }: BoutiqueAudioCapsuleProps) {
-  const [volume, setVolume] = useState<number>(55) // Rich, punchy 55% default volume
+  const [volume, setVolume] = useState<number>(getHydratedVolume)
   const [isExpanded, setIsExpanded] = useState<boolean>(false)
-  const [isMuted, setIsMuted] = useState<boolean>(false)
-  const [prevVolume, setPrevVolume] = useState<number>(55)
+  const [isMuted, setIsMuted] = useState<boolean>(() => getHydratedVolume() === 0)
+  const [prevVolume, setPrevVolume] = useState<number>(() => {
+    const init = getHydratedVolume()
+    return init > 0 ? init : 55
+  })
   const [eqLevels, setEqLevels] = useState<EqualizerLevels>({
     bar1: 0.18,
     bar2: 0.28,
@@ -80,7 +98,7 @@ export function BoutiqueAudioCapsule({
       setVolume(restored)
       boutiqueSoundEngine.setVolume(restored / 100)
     } else {
-      setPrevVolume(volume)
+      setPrevVolume(volume > 0 ? volume : (prevVolume > 0 ? prevVolume : 55))
       setIsMuted(true)
       setVolume(0)
       boutiqueSoundEngine.setVolume(0)

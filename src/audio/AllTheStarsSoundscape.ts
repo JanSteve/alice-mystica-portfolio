@@ -156,6 +156,23 @@ const ARP_PATTERNS: number[][] = [
   [NOTE.Eb4, NOTE.G4, NOTE.Bb4, NOTE.Eb5, NOTE.Bb4, NOTE.G4, NOTE.D5, NOTE.Bb4],
 ]
 
+export const STORAGE_KEY_VOLUME = 'alice_mystica_audio_volume'
+export const DEFAULT_VOLUME = 0.55
+
+function getInitialStoredVolume(): number {
+  if (typeof window === 'undefined') return DEFAULT_VOLUME
+  try {
+    const val = localStorage.getItem(STORAGE_KEY_VOLUME)
+    if (val !== null) {
+      const num = parseFloat(val)
+      if (!isNaN(num) && num >= 0 && num <= 1) {
+        return num
+      }
+    }
+  } catch {}
+  return DEFAULT_VOLUME
+}
+
 export class AllTheStarsBoutiqueSynthesizer {
   private ctx: AudioContext | null = null
   private masterGain: GainNode | null = null
@@ -165,19 +182,54 @@ export class AllTheStarsBoutiqueSynthesizer {
   private noiseBuffer: AudioBuffer | null = null
   private spatialDelayNodes: AudioNode[] = []
 
+  // Dual-Engine Hybrid Architecture (AudioBuffer Primary + Procedural Fallback)
+  private audioBuffer: AudioBuffer | null = null
+  private bufferSource: AudioBufferSourceNode | null = null
+  private rawAudioDataPromise: Promise<ArrayBuffer | null> | null = null
+  private audioLoadFailed = false
+  private listeners: Set<(isPlaying: boolean) => void> = new Set()
+
   // State
   public isPlaying = false
-  public volume = 0.55 // High-polish, rich default volume (55%)
+  public volume = getInitialStoredVolume()
   private tempo = 97
   private stepDuration = 60 / 97 / 4 // Sixteenth note duration in seconds (~0.1546s)
 
-  // Scheduler
+  // Scheduler (Procedural Synth Fallback)
+  private isProceduralRunning = false
   private schedulerTimer: ReturnType<typeof setInterval> | null = null
   private stopCleanupTimer: ReturnType<typeof setTimeout> | null = null
   private currentStep = 0
   private nextStepTime = 0
   private lookaheadMs = 40
   private scheduleAheadSec = 0.18
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.preloadAudioAsset()
+    }
+  }
+
+  // Event subscriber for audio playback state (broadcasting play/pause)
+  public addListener(cb: (isPlaying: boolean) => void): () => void {
+    this.listeners.add(cb)
+    try {
+      cb(this.isPlaying)
+    } catch {}
+    return () => {
+      this.listeners.delete(cb)
+    }
+  }
+
+  private notifyListeners() {
+    this.listeners.forEach((cb) => {
+      try {
+        cb(this.isPlaying)
+      } catch (err) {
+        console.error('[AudioEngine] Listener notification error:', err)
+      }
+    })
+  }
 
   public getAudioContext(): AudioContext | null {
     if (typeof window === 'undefined') return null
@@ -203,9 +255,93 @@ export class AllTheStarsBoutiqueSynthesizer {
       if (ctx.state === 'suspended') {
         await ctx.resume()
       }
+      if (!this.audioBuffer && !this.audioLoadFailed) {
+        this.loadAndDecodeAudioBuffer(ctx).catch(() => {})
+      }
       return ctx.state === 'running'
     } catch {
       return false
+    }
+  }
+
+  private getAssetUrl(): string {
+    const metaEnv = (import.meta as unknown as { env?: { BASE_URL?: string } })?.env
+    const base = metaEnv?.BASE_URL || '/'
+    const normalizedBase = base.endsWith('/') ? base : base + '/'
+    return `${normalizedBase}assets/all_the_stars_interlude.mp3`
+  }
+
+  // Pre-fetch raw array buffer in background
+  public preloadAudioAsset(): Promise<ArrayBuffer | null> {
+    if (this.rawAudioDataPromise) return this.rawAudioDataPromise
+    if (typeof window === 'undefined' || typeof fetch === 'undefined') {
+      return Promise.resolve(null)
+    }
+
+    const primaryUrl = this.getAssetUrl()
+    const fallbackUrl = 'assets/all_the_stars_interlude.mp3'
+
+    this.rawAudioDataPromise = (async () => {
+      try {
+        let res = await fetch(primaryUrl)
+        if (!res.ok && primaryUrl !== fallbackUrl) {
+          res = await fetch(fallbackUrl)
+        }
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} fetching ${primaryUrl}`)
+        }
+        return await res.arrayBuffer()
+      } catch (err) {
+        console.warn('[AudioEngine] Could not prefetch all_the_stars_interlude.mp3, procedural fallback armed:', err)
+        this.audioLoadFailed = true
+        return null
+      }
+    })()
+
+    return this.rawAudioDataPromise
+  }
+
+  // Raised cosine seam micro-smoothing across boundaries for zero pops/clicks
+  private applySeamSmoothing(buffer: AudioBuffer): void {
+    const sampleRate = buffer.sampleRate
+    // 4ms micro-crossfade envelope at start and end of loop seam
+    const fadeLength = Math.min(Math.floor(sampleRate * 0.004), Math.floor(buffer.length / 4))
+    if (fadeLength <= 0) return
+
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const data = buffer.getChannelData(ch)
+      const len = data.length
+      for (let i = 0; i < fadeLength; i++) {
+        const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeLength))
+        data[i] *= factor
+        data[len - 1 - i] *= factor
+      }
+    }
+  }
+
+  // Load and decode the authentic studio MP3 into an AudioBuffer
+  public async loadAndDecodeAudioBuffer(ctx: AudioContext): Promise<AudioBuffer | null> {
+    if (this.audioBuffer) return this.audioBuffer
+    if (this.audioLoadFailed) return null
+
+    try {
+      const rawData = await this.preloadAudioAsset()
+      if (!rawData) {
+        this.audioLoadFailed = true
+        return null
+      }
+
+      // decodeAudioData detaches the arrayBuffer, so slice to protect original if re-decode needed
+      const bufferCopy = rawData.slice(0)
+      const decoded = await ctx.decodeAudioData(bufferCopy)
+
+      this.applySeamSmoothing(decoded)
+      this.audioBuffer = decoded
+      return decoded
+    } catch (err) {
+      console.warn('[AudioEngine] decodeAudioData error, engaging procedural fallback:', err)
+      this.audioLoadFailed = true
+      return null
     }
   }
 
@@ -227,10 +363,108 @@ export class AllTheStarsBoutiqueSynthesizer {
   public setVolume(vol: number) {
     const clamped = Math.max(0, Math.min(1, vol))
     this.volume = clamped
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY_VOLUME, String(clamped))
+      }
+    } catch {}
     if (this.masterGain && this.ctx) {
       const now = this.ctx.currentTime
       this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now)
       this.masterGain.gain.linearRampToValueAtTime(clamped, now + 0.04)
+    }
+  }
+
+  private playBufferSource(buffer: AudioBuffer) {
+    if (!this.isPlaying || !this.ctx || !this.analyser) return
+
+    if (this.bufferSource) {
+      try {
+        this.bufferSource.stop()
+        this.bufferSource.disconnect()
+      } catch {}
+      this.bufferSource = null
+    }
+
+    this.stopProceduralScheduler()
+
+    const source = this.ctx.createBufferSource()
+    source.buffer = buffer
+    source.loop = true
+    // Route buffer source directly into this.analyser before masterGain & destination
+    source.connect(this.analyser)
+    source.start(0)
+    this.bufferSource = source
+  }
+
+  private startProceduralEngine(ctx: AudioContext, now: number) {
+    if (!this.isPlaying || !this.analyser) return
+
+    // 1. Studio Master Dynamics Compressor (glues kick, 808 bass, SZA vocal, and pluck arps)
+    this.masterCompressor = ctx.createDynamicsCompressor()
+    this.masterCompressor.threshold.setValueAtTime(-16, now)
+    this.masterCompressor.knee.setValueAtTime(18, now)
+    this.masterCompressor.ratio.setValueAtTime(3.5, now)
+    this.masterCompressor.attack.setValueAtTime(0.008, now)
+    this.masterCompressor.release.setValueAtTime(0.22, now)
+
+    // 2. Boutique Acoustic Tone Filter (Warm analog roll-off at 9200Hz)
+    this.boutiqueFilter = ctx.createBiquadFilter()
+    this.boutiqueFilter.type = 'lowpass'
+    this.boutiqueFilter.frequency.setValueAtTime(9200, now)
+    this.boutiqueFilter.Q.setValueAtTime(0.707, now)
+
+    // 3. Luxury Boutique Room Reflections (Stereo Space Delay)
+    const delayL = ctx.createDelay()
+    delayL.delayTime.setValueAtTime(0.065, now)
+    const delayR = ctx.createDelay()
+    delayR.delayTime.setValueAtTime(0.095, now)
+
+    const feedbackL = ctx.createGain()
+    feedbackL.gain.setValueAtTime(0.18, now)
+    const feedbackR = ctx.createGain()
+    feedbackR.gain.setValueAtTime(0.16, now)
+
+    const delayFilter = ctx.createBiquadFilter()
+    delayFilter.type = 'lowpass'
+    delayFilter.frequency.setValueAtTime(2800, now)
+
+    // Delay Routing
+    this.boutiqueFilter.connect(delayL)
+    this.boutiqueFilter.connect(delayR)
+    delayL.connect(delayFilter)
+    delayR.connect(delayFilter)
+    delayFilter.connect(feedbackL)
+    delayFilter.connect(feedbackR)
+    feedbackL.connect(delayL)
+    feedbackR.connect(delayR)
+
+    this.spatialDelayNodes = [delayL, delayR, feedbackL, feedbackR, delayFilter]
+
+    // Mix Direct + Space Reflections into Master Compressor
+    this.boutiqueFilter.connect(this.masterCompressor)
+    delayFilter.connect(this.masterCompressor)
+
+    // Route procedural compressor directly into this.analyser before masterGain & destination
+    this.masterCompressor.connect(this.analyser)
+
+    this.currentStep = 0
+    this.nextStepTime = now + 0.05
+    this.isProceduralRunning = true
+
+    if (this.schedulerTimer) {
+      clearInterval(this.schedulerTimer)
+    }
+    this.schedulerTimer = setInterval(() => {
+      this.runScheduler()
+    }, this.lookaheadMs)
+  }
+
+  private stopProceduralScheduler() {
+    this.isProceduralRunning = false
+    if (this.schedulerTimer) {
+      clearInterval(this.schedulerTimer)
+      this.schedulerTimer = null
     }
   }
 
@@ -246,80 +480,62 @@ export class AllTheStarsBoutiqueSynthesizer {
     if (!ctx) return false
 
     this.isPlaying = true
+    this.notifyListeners()
 
-    const launchEngine = () => {
+    const launchEngine = async () => {
       if (!this.isPlaying || !this.ctx) return
       const now = this.ctx.currentTime
 
       // 1. Analyser Node for real-time live equalizer visualization
-      this.analyser = this.ctx.createAnalyser()
-      this.analyser.fftSize = 128
-      this.analyser.smoothingTimeConstant = 0.8
+      if (!this.analyser || this.analyser.context !== this.ctx) {
+        this.analyser = this.ctx.createAnalyser()
+        this.analyser.fftSize = 128
+        this.analyser.smoothingTimeConstant = 0.8
+      }
 
-      // 2. Studio Master Dynamics Compressor (glues kick, 808 bass, SZA vocal, and pluck arps)
-      this.masterCompressor = this.ctx.createDynamicsCompressor()
-      this.masterCompressor.threshold.setValueAtTime(-16, now)
-      this.masterCompressor.knee.setValueAtTime(18, now)
-      this.masterCompressor.ratio.setValueAtTime(3.5, now)
-      this.masterCompressor.attack.setValueAtTime(0.008, now)
-      this.masterCompressor.release.setValueAtTime(0.22, now)
+      // 2. Master Gain Node with smooth fade-in
+      if (!this.masterGain || this.masterGain.context !== this.ctx) {
+        this.masterGain = this.ctx.createGain()
+      }
 
-      // 3. Master Gain Node with smooth fade-in
-      this.masterGain = this.ctx.createGain()
+      // Audio Graph: [Source] -> Analyser -> Master Gain -> Destination
+      try {
+        this.analyser.disconnect()
+      } catch {}
+      try {
+        this.masterGain.disconnect()
+      } catch {}
+
+      this.analyser.connect(this.masterGain)
+      this.masterGain.connect(this.ctx.destination)
+
+      this.masterGain.gain.cancelScheduledValues(now)
       this.masterGain.gain.setValueAtTime(0, now)
       this.masterGain.gain.linearRampToValueAtTime(this.volume, now + 0.35)
 
-      // 4. Boutique Acoustic Tone Filter (Warm analog roll-off at 9200Hz)
-      this.boutiqueFilter = this.ctx.createBiquadFilter()
-      this.boutiqueFilter.type = 'lowpass'
-      this.boutiqueFilter.frequency.setValueAtTime(9200, now)
-      this.boutiqueFilter.Q.setValueAtTime(0.707, now)
-
-      // 5. Luxury Boutique Room Reflections (Stereo Space Delay)
-      const delayL = this.ctx.createDelay()
-      delayL.delayTime.setValueAtTime(0.065, now)
-      const delayR = this.ctx.createDelay()
-      delayR.delayTime.setValueAtTime(0.095, now)
-
-      const feedbackL = this.ctx.createGain()
-      feedbackL.gain.setValueAtTime(0.18, now)
-      const feedbackR = this.ctx.createGain()
-      feedbackR.gain.setValueAtTime(0.16, now)
-
-      const delayFilter = this.ctx.createBiquadFilter()
-      delayFilter.type = 'lowpass'
-      delayFilter.frequency.setValueAtTime(2800, now)
-
-      // Delay Routing
-      this.boutiqueFilter.connect(delayL)
-      this.boutiqueFilter.connect(delayR)
-      delayL.connect(delayFilter)
-      delayR.connect(delayFilter)
-      delayFilter.connect(feedbackL)
-      delayFilter.connect(feedbackR)
-      feedbackL.connect(delayL)
-      feedbackR.connect(delayR)
-
-      this.spatialDelayNodes = [delayL, delayR, feedbackL, feedbackR, delayFilter]
-
-      // Mix Direct + Space Reflections into Master Compressor
-      this.boutiqueFilter.connect(this.masterCompressor)
-      delayFilter.connect(this.masterCompressor)
-
-      // Compressor -> Master Gain -> Analyser -> Speakers
-      this.masterCompressor.connect(this.masterGain)
-      this.masterGain.connect(this.analyser)
-      this.analyser.connect(this.ctx.destination)
-
-      this.currentStep = 0
-      this.nextStepTime = now + 0.05
-
-      if (this.schedulerTimer) {
-        clearInterval(this.schedulerTimer)
+      // Dual-engine dispatch: Try authentic studio MP3 buffer first
+      if (this.audioBuffer) {
+        this.playBufferSource(this.audioBuffer)
+        return
       }
-      this.schedulerTimer = setInterval(() => {
-        this.runScheduler()
-      }, this.lookaheadMs)
+
+      try {
+        // Race buffer decode with a 1.8s timeout so audio starts promptly
+        const bufferPromise = this.loadAndDecodeAudioBuffer(this.ctx)
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1800))
+        const buffer = await Promise.race([bufferPromise, timeoutPromise])
+
+        if (buffer && this.isPlaying) {
+          this.playBufferSource(buffer)
+        } else if (this.isPlaying) {
+          // Fallback to procedural synthesizer
+          this.startProceduralEngine(this.ctx, this.ctx.currentTime)
+        }
+      } catch {
+        if (this.isPlaying && this.ctx) {
+          this.startProceduralEngine(this.ctx, this.ctx.currentTime)
+        }
+      }
     }
 
     if (ctx.state === 'suspended') {
@@ -327,6 +543,7 @@ export class AllTheStarsBoutiqueSynthesizer {
         launchEngine()
       }).catch(() => {
         this.isPlaying = false
+        this.notifyListeners()
       })
     } else {
       launchEngine()
@@ -339,21 +556,31 @@ export class AllTheStarsBoutiqueSynthesizer {
     if (!this.isPlaying) return false
 
     this.isPlaying = false
+    this.notifyListeners()
 
-    if (this.schedulerTimer) {
-      clearInterval(this.schedulerTimer)
-      this.schedulerTimer = null
-    }
+    this.stopProceduralScheduler()
 
-    if (!this.masterGain || !this.ctx) return true
+    if (!this.ctx) return true
 
     try {
       const now = this.ctx.currentTime
-      const currentGain = Math.max(0, this.masterGain.gain.value)
-      this.masterGain.gain.setValueAtTime(currentGain, now)
-      this.masterGain.gain.linearRampToValueAtTime(0, now + 0.45)
+      if (this.masterGain) {
+        const currentGain = Math.max(0, this.masterGain.gain.value)
+        this.masterGain.gain.cancelScheduledValues(now)
+        this.masterGain.gain.setValueAtTime(currentGain, now)
+        this.masterGain.gain.linearRampToValueAtTime(0, now + 0.35)
+      }
+
+      const currentSource = this.bufferSource
+      this.bufferSource = null
 
       this.stopCleanupTimer = setTimeout(() => {
+        if (currentSource) {
+          try {
+            currentSource.stop()
+            currentSource.disconnect()
+          } catch {}
+        }
         this.spatialDelayNodes.forEach((node) => {
           try {
             node.disconnect()
@@ -390,7 +617,7 @@ export class AllTheStarsBoutiqueSynthesizer {
 
   // Lookahead Scheduling Engine
   private runScheduler() {
-    if (!this.ctx || !this.isPlaying) return
+    if (!this.ctx || !this.isPlaying || !this.isProceduralRunning) return
 
     // If context resumed from suspension, avoid catch-up burst
     if (this.nextStepTime < this.ctx.currentTime) {
@@ -405,7 +632,7 @@ export class AllTheStarsBoutiqueSynthesizer {
   }
 
   private scheduleStep(step: number, time: number) {
-    if (!this.ctx || !this.boutiqueFilter) return
+    if (!this.ctx || !this.boutiqueFilter || !this.isProceduralRunning) return
 
     const stepInMeasure = step % 16
     const measureIndex = Math.floor(step / 16)

@@ -34,10 +34,17 @@ export function AudioSpectrumCanvas({
 }: AudioSpectrumCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [mode, setMode] = useState<'bars' | 'wave'>(defaultMode)
-  const isPlaying = propIsPlaying !== undefined ? propIsPlaying : boutiqueSoundEngine.isPlaying
+  const [enginePlaying, setEnginePlaying] = useState<boolean>(() => boutiqueSoundEngine.isPlaying)
+  const isPlaying = propIsPlaying !== undefined ? propIsPlaying : enginePlaying
   const peaksRef = useRef<number[]>([])
   const particlesRef = useRef<StarParticle[]>([])
   const idlePhaseRef = useRef<number>(0)
+
+  useEffect(() => {
+    return boutiqueSoundEngine.addListener((playing) => {
+      setEnginePlaying(playing)
+    })
+  }, [])
 
   // Switch visualizer mode
   const toggleMode = (e: React.MouseEvent) => {

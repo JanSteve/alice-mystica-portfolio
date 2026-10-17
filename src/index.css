@@ -420,5 +420,41 @@ body, div, section, header, footer, aside, button, nav {
   backface-visibility: hidden;
 }
 
+/* =========================================================================
+   AUTHENTIC DIGICAM SENSOR OPTICAL FILTER MATRIX (0.000 CLS GUARANTEE)
+   ========================================================================= */
+.filter-digicam-original,
+.filter-digicam-original img,
+img.filter-digicam-original {
+  filter: contrast(102%) saturate(102%);
+  will-change: filter;
+  transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-digicam-vintage-ccd,
+.filter-digicam-vintage-ccd img,
+img.filter-digicam-vintage-ccd {
+  filter: sepia(0.24) saturate(1.28) hue-rotate(-8deg) contrast(1.06) brightness(1.02);
+  will-change: filter;
+  transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-digicam-noir-monolith,
+.filter-digicam-noir-monolith img,
+img.filter-digicam-noir-monolith {
+  filter: grayscale(100%) contrast(1.38) brightness(0.92);
+  will-change: filter;
+  transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.filter-digicam-flash-glow,
+.filter-digicam-flash-glow img,
+img.filter-digicam-flash-glow {
+  filter: brightness(1.16) contrast(1.22) saturate(1.12) drop-shadow(0 0 12px rgba(255,255,255,0.25));
+  will-change: filter;
+  transition: filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+
 
 
