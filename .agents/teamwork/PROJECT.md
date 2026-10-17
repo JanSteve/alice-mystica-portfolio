@@ -42,55 +42,34 @@ src/
   App.tsx                         # Core page layout & state integration
   index.css                       # Filter classes & animations
 tests/
-  e2e/                            # Dual-track E2E test suite (Tiers 1-4)
+  e2e/                            # Master E2E test suite (Tiers 1-4, 290 tests)
 ```
 
 ## Feature Inventory
-| # | Feature | Description | Milestone | Source |
-|---|---------|-------------|-----------|--------|
-| 1 | Audio Asset Generation & Placement | Encode/place optimized authentic `public/assets/all_the_stars_interlude.mp3` (97 BPM Bb Major, zero-crossing boundary cuts, cosine micro-fade) | M1 | ORIGINAL_REQUEST §R1 |
-| 2 | Dual-Engine Audio Buffer Loader | Upgrade `AllTheStarsSoundscape.ts` with `AudioBufferSourceNode`, seamless zero-pop looping, and procedural synthesizer fallback | M1 | ORIGINAL_REQUEST §R1 |
-| 3 | Visualizer AnalyserNode Routing | Route audio buffer through `AnalyserNode` to drive `AudioSpectrumCanvas.tsx` and `BoutiqueAudioCapsule.tsx` with authentic frequencies | M1 | ORIGINAL_REQUEST §R1 |
-| 4 | Volume Persistence | Persist audio volume in `localStorage` (`'alice_mystica_audio_volume'`) across page refreshes | M1 | ORIGINAL_REQUEST §R1 |
-| 5 | Autoplay Gesture Synchronization | Synchronize one-time user gesture across page components to start audio and un-mute cleanly | M1 | ORIGINAL_REQUEST §R1 |
-| 6 | Liquid Magnetic Spring Cursor | Adaptive lead dot and lagging ring with morphing states (`play`, `zoom`, `magnetic`) and touch graceful fallback | M2 | ORIGINAL_REQUEST §R2 |
-| 7 | Interactive Digicam Sensor Filter Switcher | Real-time 4-mode tactile visual filter matrix with CLS = 0.000 across photo frames, desk, and lightbox | M2 | ORIGINAL_REQUEST §R2 |
-| 8 | Live Animated Tab Favicon & Title Equalizer | Dynamic title visualizer (`Alice — Mystica [ ılıll ]`) and live dancing canvas favicon during playback | M2 | ORIGINAL_REQUEST §R2 |
-| 9 | Framer Bento Discipline Grid | Reconfigurable asymmetric bento card showcase for 8 Creative Disciplines with category filtering and spring transitions | M2 | ORIGINAL_REQUEST §R2 |
-| 10 | Floating Ambient Starlight Dust | Canvas starlight dust particles with radial cursor repelling physics | M2 | ORIGINAL_REQUEST §R2 |
-| 11 | Authentic Photos Preservation | Exclusively use Alice's 5 authentic photos in `public/assets/`, zero stock/placeholder, zero AI | M3 | ORIGINAL_REQUEST §R3 |
-| 12 | Persona Integrity | Ensure zero Marcus Bennet remnants across entire codebase | M3 | ORIGINAL_REQUEST §R3 |
-| 13 | Mobile Ergonomics & Safe-Area Insets | Production-grade mobile experience (360px-430px) with safe-area insets, touch targets, and gestures | M3 | ORIGINAL_REQUEST §R3 |
-| 14 | E2E Test Suite (Tiers 1-4) | Comprehensive test suite covering audio, interactive features, photo integrity, and mobile responsiveness | M4 | Dual-Track Plan |
-| 15 | Adversarial Coverage Hardening (Tier 5) | Adversarial stress testing for edge cases, rapid clicks, audio stalls, and boundary tests | M4 | Dual-Track Plan |
-| 16 | Quality Gate & Production Build | Pass `tsc --noEmit`, pass `vite build`, clean git status, commit and push to `origin main` | M5 | ORIGINAL_REQUEST §Quality |
+| # | Feature | Description | Milestone | Source | Status |
+|---|---------|-------------|-----------|--------|:------:|
+| 1 | Audio Asset Generation & Placement | Encode/place optimized authentic `public/assets/all_the_stars_interlude.mp3` | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 2 | Dual-Engine Audio Buffer Loader | Upgrade `AllTheStarsSoundscape.ts` with `AudioBufferSourceNode`, seamless zero-pop looping, and procedural synthesizer fallback | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 3 | Visualizer AnalyserNode Routing | Route audio buffer through `AnalyserNode` to drive `AudioSpectrumCanvas.tsx` and `BoutiqueAudioCapsule.tsx` with authentic frequencies | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 4 | Volume Persistence | Persist audio volume in `localStorage` (`'alice_mystica_audio_volume'`) across page refreshes | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 5 | Autoplay Gesture Synchronization | Synchronize one-time user gesture across page components to start audio and un-mute cleanly | M1 | ORIGINAL_REQUEST §R1 | DONE |
+| 6 | Liquid Magnetic Spring Cursor | Adaptive lead dot and lagging ring with morphing states (`play`, `zoom`, `magnetic`) and touch graceful fallback | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 7 | Interactive Digicam Sensor Filter Switcher | Real-time 4-mode tactile visual filter matrix with CLS = 0.000 across photo frames, desk, and lightbox | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 8 | Live Animated Tab Favicon & Title Equalizer | Dynamic title visualizer (`Alice — Mystica [ ılıll ]`) and live dancing canvas favicon during playback | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 9 | Framer Bento Discipline Grid | Reconfigurable asymmetric bento card showcase for 8 Creative Disciplines with category filtering and spring transitions | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 10 | Floating Ambient Starlight Dust | Canvas starlight dust particles with radial cursor repelling physics | M2 | ORIGINAL_REQUEST §R2 | DONE |
+| 11 | Authentic Photos Preservation | Exclusively use Alice's 5 authentic photos in `public/assets/`, zero stock/placeholder, zero AI | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 12 | Persona Integrity | Ensure zero Marcus Bennet remnants across entire codebase | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 13 | Mobile Ergonomics & Safe-Area Insets | Production-grade mobile experience (360px-430px) with safe-area insets, touch targets, and gestures | M3 | ORIGINAL_REQUEST §R3 | DONE |
+| 14 | E2E Test Suite (Tiers 1-4) | Comprehensive test suite covering audio, interactive features, photo integrity, and mobile responsiveness | M4 | Dual-Track Plan | DONE |
+| 15 | Adversarial Coverage Hardening (Tier 5) | Adversarial stress testing for edge cases, rapid clicks, audio stalls, and boundary tests | M4 | Dual-Track Plan | DONE |
+| 16 | Quality Gate & Production Build | Pass `tsc --noEmit`, pass `vite build`, clean git status, commit and push to `origin main` | M5 | ORIGINAL_REQUEST §Quality | DONE |
 
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
-|---|------|-------|-------------|--------|
+|---|------|-------|-------------|:------:|
 | M1 | Audio Integration & Web Audio Engine | Features 1, 2, 3, 4, 5 | none | DONE |
-| M2 | Framer Interactive Feature Suite | Features 6, 7, 8, 9, 10 | none | PLANNED |
-| M3 | Identity, Photos & Mobile Ergonomics | Features 11, 12, 13 | none | PLANNED |
-| M4 | E2E Verification & Adversarial Hardening | Features 14, 15 (Tiers 1-5) | M1, M2, M3 | PLANNED |
-| M5 | Final Quality Gate, Git Commit & Push | Feature 16 (`tsc`, `vite build`, git commit/push) | M4 | PLANNED |
-
-## Interface Contracts
-### Audio Engine ↔ Visualizer Components
-- `boutiqueSoundEngine.getAnalyser(): AnalyserNode | null`
-- `boutiqueSoundEngine.getEqualizerLevels(): { bar1: number, bar2: number, bar3: number, bar4: number, beatIntensity: number }`
-- `boutiqueSoundEngine.addListener(cb: (isPlaying: boolean) => void): () => void`
-- `boutiqueSoundEngine.setVolume(vol: number): void` (persists to `localStorage`)
-- Storage Key: `'alice_mystica_audio_volume'`
-
-### Digicam Filter Switcher ↔ Photo Frames
-- Type: `type DigicamFilter = 'original' | 'vintage-ccd' | 'noir-monolith' | 'flash-glow'`
-- CSS classes: `.filter-digicam-original`, `.filter-digicam-vintage-ccd`, `.filter-digicam-noir-monolith`, `.filter-digicam-flash-glow`
-- Applied to `<img>` elements within fixed aspect ratio parents (0 layout shift guarantee)
-- Storage Key: `'alice_digicam_sensor_filter'`
-
-### Tab Favicon & Title Visualizer ↔ Audio State
-- Props: `{ isPlaying: boolean }`
-- Default title: `"Alice — Mystica • The Creative Archive"`
-- Playing title pattern: `"Alice — Mystica [ " + bars + " ]"`
-- Favicon canvas: `32x32` offscreen canvas rendered to Data URL
-- Pause behavior: immediate reset to default title and `/assets/alice_hero_red.png`
+| M2 | Framer Interactive Feature Suite | Features 6, 7, 8, 9, 10 | none | DONE |
+| M3 | Identity, Photos & Mobile Ergonomics | Features 11, 12, 13 | none | DONE |
+| M4 | E2E Verification & Adversarial Hardening | Features 14, 15 (Tiers 1-5) | M1, M2, M3 | DONE |
+| M5 | Final Quality Gate, Git Commit & Push | Feature 16 (`tsc`, `vite build`, git commit/push) | M4 | DONE |
